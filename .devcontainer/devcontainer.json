@@ -1,0 +1,10 @@
+{
+  "name": "Basic bun workspace",
+  "build": { "dockerfile": "Dockerfile" },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "16gb"
+  },
+  "remoteUser": "bun"
+}
