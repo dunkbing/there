@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { PomodoroTimer } from "@/components/pomodoro-timer";
 import { MeetingWorkspace } from "@/components/meeting-workspace";
 import { SoundSelector } from "@/components/sound-selector";
 import { MusicPlayer } from "@/components/music-player";
 import { ThemeSelector } from "@/components/theme-selector";
+import { FocusDialog } from "@/components/focus-dialog";
+import { RoomInfoDialog } from "@/components/room-info-dialog";
 import { RoomHeader } from "@/components/room-header";
 import { RoomMembers } from "@/components/room-members";
+import { RoomChat } from "@/components/room-chat";
 import { Button } from "@/components/ui/button";
-import { Volume2, Music, Palette } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Volume2, Music, Palette, Timer, Info } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 
 export default function RoomPage() {
@@ -19,10 +20,11 @@ export default function RoomPage() {
   const roomId = params.id as string;
   const [room, setRoom] = useState<RoomWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("focus");
   const [soundSelectorOpen, setSoundSelectorOpen] = useState(false);
   const [musicPlayerOpen, setMusicPlayerOpen] = useState(false);
   const [themeSelectorOpen, setThemeSelectorOpen] = useState(false);
+  const [focusDialogOpen, setFocusDialogOpen] = useState(false);
+  const [roomInfoOpen, setRoomInfoOpen] = useState(false);
 
   useEffect(() => {
     const fetchRoom = async () => {
@@ -76,43 +78,15 @@ export default function RoomPage() {
 
       <div className="container mx-auto px-4 py-8 relative z-10">
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Main Content */}
+          {/* Main Content - Meeting Workspace */}
           <div className="lg:col-span-3 space-y-6">
-            <Tabs
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="w-full"
-            >
-              <TabsList className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl grid w-full grid-cols-2 mb-8">
-                <TabsTrigger
-                  value="focus"
-                  className="transition-all duration-300 ease-out"
-                >
-                  Focus
-                </TabsTrigger>
-                <TabsTrigger
-                  value="collaborate"
-                  className="transition-all duration-300 ease-out"
-                >
-                  Collaborate
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Focus Tab - Pomodoro Timer */}
-              <TabsContent value="focus" className="space-y-6">
-                <PomodoroTimer />
-              </TabsContent>
-
-              {/* Collaborate Tab - Video/Chat */}
-              <TabsContent value="collaborate" className="space-y-6">
-                <MeetingWorkspace />
-              </TabsContent>
-            </Tabs>
+            <MeetingWorkspace />
           </div>
 
-          {/* Sidebar - Room Members */}
-          <div className="lg:col-span-1">
+          {/* Sidebar - Room Members & Chat */}
+          <div className="lg:col-span-1 space-y-6">
             <RoomMembers members={room.members || []} />
+            <RoomChat />
           </div>
         </div>
       </div>
@@ -140,6 +114,20 @@ export default function RoomPage() {
         >
           <Palette className="w-5 h-5" />
         </Button>
+        <Button
+          onClick={() => setFocusDialogOpen(true)}
+          className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+          title="Focus Timer"
+        >
+          <Timer className="w-5 h-5" />
+        </Button>
+        <Button
+          onClick={() => setRoomInfoOpen(true)}
+          className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
+          title="Room Info"
+        >
+          <Info className="w-5 h-5" />
+        </Button>
       </div>
 
       {/* Popups */}
@@ -154,6 +142,14 @@ export default function RoomPage() {
       <ThemeSelector
         isOpen={themeSelectorOpen}
         onClose={() => setThemeSelectorOpen(false)}
+      />
+      <FocusDialog
+        isOpen={focusDialogOpen}
+        onClose={() => setFocusDialogOpen(false)}
+      />
+      <RoomInfoDialog
+        isOpen={roomInfoOpen}
+        onClose={() => setRoomInfoOpen(false)}
       />
     </main>
   );
