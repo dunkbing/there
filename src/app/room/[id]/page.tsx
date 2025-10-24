@@ -77,6 +77,12 @@ export default function RoomPage() {
     fetchRoom();
   }, [roomId]);
 
+  useEffect(() => {
+    if (room?.name) {
+      document.title = `${room.name} - Focus Room`;
+    }
+  }, [room]);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
@@ -109,7 +115,7 @@ export default function RoomPage() {
       {/* Room Header */}
       <RoomHeader room={room} />
 
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div className="container mx-auto px-4 relative z-10">
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Main Content - Meeting Workspace */}
           <div className="lg:col-span-3 space-y-6">
