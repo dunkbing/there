@@ -5,13 +5,29 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Whiteboard } from "@/components/whiteboard";
 import { Video, Mic, MicOff, VideoOff, Pencil } from "lucide-react";
+import type { RoomMemberWithRelations } from "@/lib/schemas";
 
-export function MeetingWorkspace() {
+interface MeetingWorkspaceProps {
+  members: RoomMemberWithRelations[];
+  currentUserId: string;
+}
+
+export function MeetingWorkspace({
+  members,
+  currentUserId,
+}: MeetingWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<"video" | "whiteboard">("video");
   const [isMicOn, setIsMicOn] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    // Update video element when stream changes
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
 
   useEffect(() => {
     // Cleanup on unmount
@@ -49,9 +65,6 @@ export function MeetingWorkspace() {
           // Create new stream
           const newStream = new MediaStream([audioTrack]);
           setStream(newStream);
-          if (videoRef.current) {
-            videoRef.current.srcObject = newStream;
-          }
         }
         setIsMicOn(true);
       }
@@ -84,16 +97,12 @@ export function MeetingWorkspace() {
         if (stream) {
           // Add to existing stream
           stream.addTrack(videoTrack);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
+          // Trigger re-render by creating new stream reference
+          setStream(new MediaStream(stream.getTracks()));
         } else {
           // Create new stream
           const newStream = new MediaStream([videoTrack]);
           setStream(newStream);
-          if (videoRef.current) {
-            videoRef.current.srcObject = newStream;
-          }
         }
         setIsVideoOn(true);
       }
@@ -135,25 +144,72 @@ export function MeetingWorkspace() {
       {activeTab === "video" && (
         <div className="space-y-4">
           <Card className="bg-card border-border p-6">
-            <h3 className="text-lg font-semibold mb-4">Video Call</h3>
+            {/* Video Grid */}
+            <div className="bg-black rounded-lg overflow-hidden mb-4 aspect-video p-4">
+              <div
+                className={`grid gap-4 h-full ${
+                  members.length === 1
+                    ? "grid-cols-1"
+                    : members.length === 2
+                      ? "grid-cols-2"
+                      : members.length <= 4
+                        ? "grid-cols-2 grid-rows-2"
+                        : members.length <= 6
+                          ? "grid-cols-3 grid-rows-2"
+                          : "grid-cols-3 grid-rows-3"
+                }`}
+              >
+                {members.map((member) => {
+                  const isCurrentUser =
+                    member.user?.id === currentUserId ||
+                    member.id === currentUserId;
+                  const memberName =
+                    member.user?.name || member.guestName || "Guest";
+                  const initials = (
+                    member.user?.name?.[0] ||
+                    member.guestName?.[0] ||
+                    "?"
+                  ).toUpperCase();
 
-            {/* Video Preview */}
-            <div className="bg-black rounded-lg overflow-hidden mb-4 aspect-video flex items-center justify-center relative">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-              {!isVideoOn && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                  <div className="text-center text-muted-foreground">
-                    <Video className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Camera is off</p>
-                  </div>
-                </div>
-              )}
+                  return (
+                    <div
+                      key={member.id}
+                      className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center"
+                    >
+                      {isCurrentUser && isVideoOn ? (
+                        // Show video for current user if camera is on
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        // Show name label for users with camera off or other members
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="w-16 h-16 rounded-full bg-linear-to-br from-primary to-accent flex items-center justify-center text-2xl font-semibold">
+                            {initials}
+                          </div>
+                          <p className="text-white font-medium">{memberName}</p>
+                          {isCurrentUser && (
+                            <p className="text-xs text-gray-400">(You)</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Name tag at bottom */}
+                      {isCurrentUser && isVideoOn && (
+                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full">
+                          <p className="text-white text-sm font-medium">
+                            {memberName} {isCurrentUser && "(You)"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Controls */}

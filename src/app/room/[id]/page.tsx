@@ -292,7 +292,14 @@ export default function RoomPage() {
         <div className="grid lg:grid-cols-4 gap-6 h-full">
           {/* Main Content - Meeting Workspace */}
           <div className="lg:col-span-3 space-y-6">
-            <MeetingWorkspace />
+            <MeetingWorkspace
+              members={room.members || []}
+              currentUserId={
+                session?.user?.id ||
+                localStorage.getItem(`guestId_${roomId}`) ||
+                ""
+              }
+            />
           </div>
 
           {/* Sidebar - Room Members & Chat */}

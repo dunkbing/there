@@ -22,7 +22,7 @@ export function RoomMembers({ members, currentUserId }: RoomMembersProps) {
             key={member.id}
             className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xs font-semibold">
+            <div className="w-8 h-8 rounded-full bg-linear-to-br from-primary to-accent flex items-center justify-center text-xs font-semibold">
               {(
                 member.user?.name?.[0] ||
                 member.guestName?.[0] ||
