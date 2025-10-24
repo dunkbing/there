@@ -24,46 +24,36 @@ export function MeetingWorkspace() {
 
   const toggleMic = async () => {
     try {
-      if (!stream) {
-        // Request microphone permission
-        const newStream = await navigator.mediaDevices.getUserMedia({
+      if (isMicOn) {
+        // Turn off microphone - stop and remove audio tracks
+        if (stream) {
+          const audioTracks = stream.getAudioTracks();
+          audioTracks.forEach((track) => {
+            track.stop();
+            stream.removeTrack(track);
+          });
+        }
+        setIsMicOn(false);
+      } else {
+        // Turn on microphone
+        const audioStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: false,
         });
+        const audioTrack = audioStream.getAudioTracks()[0];
 
-        // Merge with existing video stream if available
-        if (videoRef.current?.srcObject) {
-          const existingStream = videoRef.current.srcObject as MediaStream;
-          const audioTrack = newStream.getAudioTracks()[0];
-          existingStream.addTrack(audioTrack);
-          setStream(existingStream);
+        if (stream) {
+          // Add to existing stream
+          stream.addTrack(audioTrack);
         } else {
+          // Create new stream
+          const newStream = new MediaStream([audioTrack]);
+          setStream(newStream);
           if (videoRef.current) {
             videoRef.current.srcObject = newStream;
           }
-          setStream(newStream);
         }
-
         setIsMicOn(true);
-      } else {
-        // Toggle existing microphone
-        const audioTracks = stream.getAudioTracks();
-        if (audioTracks.length > 0) {
-          const newState = !isMicOn;
-          audioTracks.forEach((track) => {
-            track.enabled = newState;
-          });
-          setIsMicOn(newState);
-        } else {
-          // No audio track, request permission
-          const audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-          });
-          const audioTrack = audioStream.getAudioTracks()[0];
-          stream.addTrack(audioTrack);
-          setIsMicOn(true);
-        }
       }
     } catch (error) {
       console.error("Error accessing microphone:", error);
@@ -73,41 +63,39 @@ export function MeetingWorkspace() {
 
   const toggleVideo = async () => {
     try {
-      if (!stream) {
-        // Request camera permission
-        const newStream = await navigator.mediaDevices.getUserMedia({
+      if (isVideoOn) {
+        // Turn off camera - stop and remove video tracks
+        if (stream) {
+          const videoTracks = stream.getVideoTracks();
+          videoTracks.forEach((track) => {
+            track.stop();
+            stream.removeTrack(track);
+          });
+        }
+        setIsVideoOn(false);
+      } else {
+        // Turn on camera
+        const videoStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: true,
         });
+        const videoTrack = videoStream.getVideoTracks()[0];
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = newStream;
-        }
-        setStream(newStream);
-        setIsVideoOn(true);
-      } else {
-        // Toggle existing video
-        const videoTracks = stream.getVideoTracks();
-        if (videoTracks.length > 0) {
-          const newState = !isVideoOn;
-          videoTracks.forEach((track) => {
-            track.enabled = newState;
-          });
-          setIsVideoOn(newState);
-        } else {
-          // No video track, request permission
-          const videoStream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: true,
-          });
-          const videoTrack = videoStream.getVideoTracks()[0];
+        if (stream) {
+          // Add to existing stream
           stream.addTrack(videoTrack);
-
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
           }
-          setIsVideoOn(true);
+        } else {
+          // Create new stream
+          const newStream = new MediaStream([videoTrack]);
+          setStream(newStream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = newStream;
+          }
         }
+        setIsVideoOn(true);
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
