@@ -1,15 +1,10 @@
 "use client";
 
+import { RoomMemberWithRelations } from "@/lib/schemas";
 import { Users } from "lucide-react";
 
-interface Member {
-  id: string;
-  guestName: string | null;
-  user: { name: string | null; email: string } | null;
-}
-
 interface RoomMembersProps {
-  members: Member[];
+  members: RoomMemberWithRelations[];
 }
 
 export function RoomMembers({ members }: RoomMembersProps) {

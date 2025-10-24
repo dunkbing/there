@@ -14,3 +14,5 @@ export const usersRelations = relations(users, ({ many }) => ({
   rooms: many(rooms),
   roomMembers: many(roomMembers),
 }));
+
+export type SelectUser = typeof users.$inferSelect;

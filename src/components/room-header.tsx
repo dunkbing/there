@@ -3,14 +3,10 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Copy, Globe, Lock } from "lucide-react";
+import { type SelectRoom } from "@/lib/schemas";
 
 interface RoomHeaderProps {
-  room: {
-    id: string;
-    name: string;
-    description: string | null;
-    isPublic: boolean;
-  };
+  room: SelectRoom;
 }
 
 export function RoomHeader({ room }: RoomHeaderProps) {
@@ -38,7 +34,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold">{room.name}</h1>
-                {room.isPublic ? (
+                {room.public ? (
                   <Globe className="w-4 h-4 text-primary" />
                 ) : (
                   <Lock className="w-4 h-4 text-accent" />

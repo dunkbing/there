@@ -42,10 +42,7 @@ app.post("/rooms", async (c) => {
 
     if (session?.user) {
       userId = session.user.id;
-    } else {
-      return c.json({ error: "Authentication required" }, 401);
     }
-
     // Create room
     const newRoom = await db
       .insert(rooms)
@@ -53,7 +50,7 @@ app.post("/rooms", async (c) => {
         name,
         description: description || null,
         createdBy: userId,
-        isPublic: isPublic ?? true,
+        public: isPublic ?? true,
       })
       .returning();
 

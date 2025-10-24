@@ -1,17 +1,15 @@
 import { pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
-import { roomMembers } from "./room-members";
+import { roomMembers, SelectRoomMember } from "./room-members";
 import { roomSettings } from "./room-settings";
 
 export const rooms = pgTable("rooms", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   description: text("description"),
-  createdBy: uuid("created_by")
-    .notNull()
-    .references(() => users.id),
-  isPublic: boolean("is_public").default(true),
+  createdBy: uuid("created_by").references(() => users.id),
+  public: boolean("public").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -24,3 +22,8 @@ export const roomsRelations = relations(rooms, ({ one, many }) => ({
   members: many(roomMembers),
   settings: many(roomSettings),
 }));
+
+export type SelectRoom = typeof rooms.$inferSelect;
+export type RoomWithRelations = SelectRoom & {
+  members?: SelectRoomMember[];
+};

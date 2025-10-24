@@ -12,29 +12,12 @@ import { RoomMembers } from "@/components/room-members";
 import { Button } from "@/components/ui/button";
 import { Volume2, Music, Palette } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-interface Room {
-  id: string;
-  name: string;
-  description: string | null;
-  isPublic: boolean;
-  members: Array<{
-    id: string;
-    guestName: string | null;
-    user: { name: string | null; email: string } | null;
-  }>;
-  settings: Array<{
-    pomodoroWorkDuration: number;
-    pomodoroBreakDuration: number;
-    ambientSound: string;
-    musicUrl: string | null;
-  }>;
-}
+import type { RoomWithRelations } from "@/lib/schemas";
 
 export default function RoomPage() {
   const params = useParams();
-  const roomId = params.roomId as string;
-  const [room, setRoom] = useState<Room | null>(null);
+  const roomId = params.id as string;
+  const [room, setRoom] = useState<RoomWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("focus");
   const [soundSelectorOpen, setSoundSelectorOpen] = useState(false);
@@ -129,7 +112,7 @@ export default function RoomPage() {
 
           {/* Sidebar - Room Members */}
           <div className="lg:col-span-1">
-            <RoomMembers members={room.members} />
+            <RoomMembers members={room.members || []} />
           </div>
         </div>
       </div>
