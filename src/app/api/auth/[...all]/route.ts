@@ -1,3 +1,4 @@
 import { auth } from "@/lib/auth";
 
-export const { POST, GET } = auth.toNextApiHandler();
+export const GET = auth.handler;
+export const POST = auth.handler;

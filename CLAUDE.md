@@ -55,7 +55,7 @@ The application uses a PostgreSQL database with Drizzle ORM. Key tables:
 - **roomMembers** - Junction table linking users/guests to rooms with roles (creator/member)
 - **roomSettings** - Per-room settings for pomodoro durations, ambient sounds, music URLs
 
-Database schema is defined in `src/lib/schema.ts` with full relational mappings.
+Database schemas are organized in `src/lib/schemas/` with each table in its own file (`users.ts`, `rooms.ts`, `room-members.ts`, `room-settings.ts`) and exported via `index.ts`. Each schema file includes the table definition and its Drizzle relations.
 
 ### Authentication Architecture
 

@@ -1,15 +1,15 @@
 import { db } from "@/lib/db";
-import { rooms, roomSettings } from "@/lib/schema";
+import { rooms, roomSettings } from "@/lib/schemas";
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 // GET /api/rooms/[roomId] - Get room details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { roomId: string } },
+  { params }: { params: Promise<{ roomId: string }> },
 ) {
   try {
-    const { roomId } = params;
+    const { roomId } = await params;
 
     const room = await db.query.rooms.findFirst({
       where: eq(rooms.id, roomId),
@@ -41,10 +41,10 @@ export async function GET(
 // PUT /api/rooms/[roomId] - Update room settings
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { roomId: string } },
+  { params }: { params: Promise<{ roomId: string }> },
 ) {
   try {
-    const { roomId } = params;
+    const { roomId } = await params;
     const {
       pomodoroWorkDuration,
       pomodoroBreakDuration,

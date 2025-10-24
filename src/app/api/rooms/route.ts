@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { rooms, roomMembers, roomSettings } from "@/lib/schema";
+import { rooms, roomMembers, roomSettings } from "@/lib/schemas";
 import { getSession } from "@/lib/session";
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
