@@ -218,8 +218,16 @@ export default function RoomPage() {
             <RoomMembers members={room.members || []} />
             <RoomChat
               roomId={roomId}
-              userId={session?.user?.id || localStorage.getItem(`guestId_${roomId}`) || ""}
-              userName={session?.user?.name || localStorage.getItem("guestUsername") || "Guest"}
+              userId={
+                session?.user?.id ||
+                localStorage.getItem(`guestId_${roomId}`) ||
+                ""
+              }
+              userName={
+                session?.user?.name ||
+                localStorage.getItem("guestUsername") ||
+                "Guest"
+              }
               members={room.members || []}
             />
           </div>

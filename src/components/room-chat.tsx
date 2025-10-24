@@ -18,12 +18,17 @@ interface RoomChatProps {
   members?: Member[];
 }
 
-export function RoomChat({ roomId, userId, userName, members = [] }: RoomChatProps) {
+export function RoomChat({
+  roomId,
+  userId,
+  userName,
+  members = [],
+}: RoomChatProps) {
   const { messages: chatMessages, sendMessage: sendWebRTCMessage } = useWebRTC(
     roomId,
     userId,
     userName,
-    members
+    members,
   );
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);

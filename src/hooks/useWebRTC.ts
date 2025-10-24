@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import Pusher, { Channel } from "pusher-js";
 
 interface ChatMessage {
   id: string;
@@ -23,53 +24,17 @@ export function useWebRTC(
   roomId: string,
   userId: string,
   userName: string,
-  members: Member[] = []
+  members: Member[] = [],
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectedPeers, setConnectedPeers] = useState<Set<string>>(new Set());
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const dataChannelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
-
-  const createPeerConnection = useCallback((peerId: string) => {
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-      ],
-    });
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        // Send ICE candidate to peer via signaling server
-        sendSignal({
-          type: "ice-candidate",
-          data: event.candidate,
-          from: userId,
-          to: peerId,
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") {
-        setConnectedPeers((prev) => new Set(prev).add(peerId));
-      } else if (
-        pc.connectionState === "disconnected" ||
-        pc.connectionState === "failed"
-      ) {
-        setConnectedPeers((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(peerId);
-          return newSet;
-        });
-      }
-    };
-
-    peersRef.current.set(peerId, pc);
-    return pc;
-  }, [userId]);
+  const pusherRef = useRef<Pusher | null>(null);
+  const channelRef = useRef<Channel>(null);
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(
+    new Map(),
+  );
 
   const sendSignal = async (signal: SignalData) => {
     try {
@@ -83,28 +48,73 @@ export function useWebRTC(
     }
   };
 
-  const setupDataChannel = useCallback((channel: RTCDataChannel, peerId: string) => {
-    channel.onopen = () => {
-      console.log("Data channel opened with", peerId);
-    };
+  const createPeerConnection = useCallback(
+    (peerId: string) => {
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+        ],
+      });
 
-    channel.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        setMessages((prev) => [
-          ...prev,
-          {
-            ...message,
-            timestamp: new Date(message.timestamp),
-          },
-        ]);
-      } catch (error) {
-        console.error("Failed to parse message:", error);
-      }
-    };
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          // Send ICE candidate to peer via signaling server
+          sendSignal({
+            type: "ice-candidate",
+            data: event.candidate,
+            from: userId,
+            to: peerId,
+          });
+        }
+      };
 
-    dataChannelsRef.current.set(peerId, channel);
-  }, []);
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          setConnectedPeers((prev) => new Set(prev).add(peerId));
+        } else if (
+          pc.connectionState === "disconnected" ||
+          pc.connectionState === "failed"
+        ) {
+          setConnectedPeers((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(peerId);
+            return newSet;
+          });
+        }
+      };
+
+      peersRef.current.set(peerId, pc);
+      return pc;
+    },
+    [sendSignal, userId],
+  );
+
+  const setupDataChannel = useCallback(
+    (channel: RTCDataChannel, peerId: string) => {
+      channel.onopen = () => {
+        console.log("Data channel opened with", peerId);
+      };
+
+      channel.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          setMessages((prev) => [
+            ...prev,
+            {
+              ...message,
+              timestamp: new Date(message.timestamp),
+            },
+          ]);
+        } catch (error) {
+          console.error("Failed to parse message:", error);
+        }
+      };
+
+      dataChannelsRef.current.set(peerId, channel);
+    },
+    [],
+  );
 
   const createOffer = async (peerId: string) => {
     const pc = createPeerConnection(peerId);
@@ -122,7 +132,10 @@ export function useWebRTC(
     });
   };
 
-  const handleOffer = async (offer: RTCSessionDescriptionInit, from: string) => {
+  const handleOffer = async (
+    offer: RTCSessionDescriptionInit,
+    from: string,
+  ) => {
     const pc = createPeerConnection(from);
 
     pc.ondatachannel = (event) => {
@@ -153,7 +166,10 @@ export function useWebRTC(
     });
   };
 
-  const handleAnswer = async (answer: RTCSessionDescriptionInit, from: string) => {
+  const handleAnswer = async (
+    answer: RTCSessionDescriptionInit,
+    from: string,
+  ) => {
     const pc = peersRef.current.get(from);
     if (pc && pc.signalingState === "have-local-offer") {
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -171,7 +187,10 @@ export function useWebRTC(
     }
   };
 
-  const handleIceCandidate = async (candidate: RTCIceCandidateInit, from: string) => {
+  const handleIceCandidate = async (
+    candidate: RTCIceCandidateInit,
+    from: string,
+  ) => {
     const pc = peersRef.current.get(from);
     if (pc) {
       if (pc.remoteDescription) {
@@ -190,46 +209,28 @@ export function useWebRTC(
     }
   };
 
-  const pollSignals = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/webrtc/signal?roomId=${roomId}&userId=${userId}`);
-      if (response.ok) {
-        const signals: SignalData[] = await response.json();
+  const sendMessage = useCallback(
+    (text: string) => {
+      const message: ChatMessage = {
+        id: Date.now().toString(),
+        sender: userName,
+        text,
+        timestamp: new Date(),
+      };
 
-        for (const signal of signals) {
-          if (signal.type === "offer") {
-            await handleOffer(signal.data, signal.from);
-          } else if (signal.type === "answer") {
-            await handleAnswer(signal.data, signal.from);
-          } else if (signal.type === "ice-candidate") {
-            await handleIceCandidate(signal.data, signal.from);
-          }
+      // Add to local messages
+      setMessages((prev) => [...prev, message]);
+
+      // Broadcast to all connected peers
+      const messageStr = JSON.stringify(message);
+      dataChannelsRef.current.forEach((channel) => {
+        if (channel.readyState === "open") {
+          channel.send(messageStr);
         }
-      }
-    } catch (error) {
-      console.error("Failed to poll signals:", error);
-    }
-  }, [roomId, userId]);
-
-  const sendMessage = useCallback((text: string) => {
-    const message: ChatMessage = {
-      id: Date.now().toString(),
-      sender: userName,
-      text,
-      timestamp: new Date(),
-    };
-
-    // Add to local messages
-    setMessages((prev) => [...prev, message]);
-
-    // Broadcast to all connected peers
-    const messageStr = JSON.stringify(message);
-    dataChannelsRef.current.forEach((channel) => {
-      if (channel.readyState === "open") {
-        channel.send(messageStr);
-      }
-    });
-  }, [userName]);
+      });
+    },
+    [userName],
+  );
 
   const connectToPeers = useCallback(async () => {
     try {
@@ -251,16 +252,36 @@ export function useWebRTC(
     connectToPeers();
   }, [connectToPeers]);
 
-  // Start polling for signals
+  // Setup Pusher for real-time signaling
   useEffect(() => {
-    pollingIntervalRef.current = setInterval(() => {
-      pollSignals();
-    }, 5000); // Poll every 5 seconds instead of 2
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    });
+
+    // Subscribe to public room channel
+    const channel = pusher.subscribe(`room-${roomId}`);
+
+    channel.bind("webrtc-signal", (signal: SignalData & { to: string }) => {
+      console.log("signal data", signal.data);
+      // Only process signals intended for this user
+      if (signal.to !== userId) return;
+
+      if (signal.type === "offer") {
+        handleOffer(signal.data, signal.from);
+      } else if (signal.type === "answer") {
+        handleAnswer(signal.data, signal.from);
+      } else if (signal.type === "ice-candidate") {
+        handleIceCandidate(signal.data, signal.from);
+      }
+    });
+
+    pusherRef.current = pusher;
+    channelRef.current = channel;
 
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
+      channel.unbind_all();
+      channel.unsubscribe();
+      pusher.disconnect();
 
       // Cleanup peer connections
       peersRef.current.forEach((pc) => pc.close());
@@ -268,7 +289,7 @@ export function useWebRTC(
       dataChannelsRef.current.clear();
       pendingIceCandidatesRef.current.clear();
     };
-  }, [pollSignals]);
+  }, [roomId, userId]);
 
   return {
     messages,

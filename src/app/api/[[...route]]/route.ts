@@ -1,11 +1,21 @@
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
+import Pusher from "pusher";
 import { db } from "@/lib/db";
 import { rooms, roomMembers, roomSettings } from "@/lib/schemas";
 import { getSession } from "@/lib/session";
 import { eq, and } from "drizzle-orm";
 
 const app = new Hono().basePath("/api");
+
+// Initialize Pusher
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+  useTLS: true,
+});
 
 // GET /api/rooms - Get user's rooms
 app.get("/rooms", async (c) => {
@@ -189,10 +199,7 @@ app.post("/rooms/join", async (c) => {
     } else if (guestId) {
       // Anonymous user with guest ID - check if already in room
       const existingGuest = await db.query.roomMembers.findFirst({
-        where: and(
-          eq(roomMembers.roomId, roomId),
-          eq(roomMembers.id, guestId),
-        ),
+        where: and(eq(roomMembers.roomId, roomId), eq(roomMembers.id, guestId)),
       });
 
       if (!existingGuest) {
@@ -206,11 +213,14 @@ app.post("/rooms/join", async (c) => {
       }
     } else {
       // Anonymous user without guest ID (new guest)
-      const newMember = await db.insert(roomMembers).values({
-        roomId,
-        guestName: guestName || "Guest",
-        role: "member",
-      }).returning();
+      const newMember = await db
+        .insert(roomMembers)
+        .values({
+          roomId,
+          guestName: guestName || "Guest",
+          role: "member",
+        })
+        .returning();
 
       return c.json({ success: true, guestId: newMember[0].id });
     }
@@ -222,53 +232,30 @@ app.post("/rooms/join", async (c) => {
   }
 });
 
-// WebRTC Signaling - In-memory storage for signals
-const signalQueue = new Map<string, any[]>();
-
-// POST /api/webrtc/signal - Send WebRTC signal
+// POST /api/webrtc/signal - Send WebRTC signal via Pusher
 app.post("/webrtc/signal", async (c) => {
   try {
     const signal = await c.req.json();
-    const { roomId, to } = signal;
+    const { roomId, to, type, data, from } = signal;
 
-    if (!roomId) {
-      return c.json({ error: "Room ID is required" }, 400);
+    if (!roomId || !to) {
+      return c.json({ error: "Room ID and recipient are required" }, 400);
     }
 
-    // Store signal for the recipient
-    const key = `${roomId}:${to}`;
-    if (!signalQueue.has(key)) {
-      signalQueue.set(key, []);
-    }
-    signalQueue.get(key)!.push(signal);
+    // Send signal to room channel via Pusher
+    const channel = `room-${roomId}`;
+    console.log("triggering channel", channel);
+    await pusher.trigger(channel, "webrtc-signal", {
+      type,
+      data,
+      from,
+      to,
+    });
 
     return c.json({ success: true });
   } catch (error) {
     console.error("Failed to send signal:", error);
     return c.json({ error: "Failed to send signal" }, 500);
-  }
-});
-
-// GET /api/webrtc/signal - Get pending signals
-app.get("/webrtc/signal", async (c) => {
-  try {
-    const roomId = c.req.query("roomId");
-    const userId = c.req.query("userId");
-
-    if (!roomId || !userId) {
-      return c.json({ error: "Room ID and User ID are required" }, 400);
-    }
-
-    const key = `${roomId}:${userId}`;
-    const signals = signalQueue.get(key) || [];
-
-    // Clear signals after retrieval
-    signalQueue.delete(key);
-
-    return c.json(signals);
-  } catch (error) {
-    console.error("Failed to get signals:", error);
-    return c.json({ error: "Failed to get signals" }, 500);
   }
 });
 
