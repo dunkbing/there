@@ -5,9 +5,10 @@ import { Users } from "lucide-react";
 
 interface RoomMembersProps {
   members: RoomMemberWithRelations[];
+  currentUserId?: string;
 }
 
-export function RoomMembers({ members }: RoomMembersProps) {
+export function RoomMembers({ members, currentUserId }: RoomMembersProps) {
   return (
     <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 sticky top-24">
       <div className="flex items-center gap-2 mb-4">
@@ -31,6 +32,10 @@ export function RoomMembers({ members }: RoomMembersProps) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">
                 {member.user?.name || member.guestName || "Guest"}
+                {(member.user?.id === currentUserId ||
+                  member.id === currentUserId) && (
+                  <span className="text-muted-foreground"> (You)</span>
+                )}
               </p>
               {member.user?.email && (
                 <p className="text-xs text-muted-foreground truncate">

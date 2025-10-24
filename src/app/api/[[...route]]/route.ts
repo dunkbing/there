@@ -64,13 +64,6 @@ app.post("/rooms", async (c) => {
       })
       .returning();
 
-    // Add creator as member
-    await db.insert(roomMembers).values({
-      roomId: newRoom[0].id,
-      userId,
-      role: "creator",
-    });
-
     // Create default room settings
     await db.insert(roomSettings).values({
       roomId: newRoom[0].id,
@@ -229,6 +222,43 @@ app.post("/rooms/join", async (c) => {
   } catch (error) {
     console.error("Failed to join room:", error);
     return c.json({ error: "Failed to join room" }, 500);
+  }
+});
+
+// POST /api/rooms/leave - Leave a room
+app.post("/rooms/leave", async (c) => {
+  try {
+    const { roomId, guestId } = await c.req.json();
+    const session = await getSession();
+
+    if (!roomId) {
+      return c.json({ error: "Room ID is required" }, 400);
+    }
+
+    // Remove member from room
+    if (session?.user) {
+      // Authenticated user
+      await db
+        .delete(roomMembers)
+        .where(
+          and(
+            eq(roomMembers.roomId, roomId),
+            eq(roomMembers.userId, session.user.id),
+          ),
+        );
+    } else if (guestId) {
+      // Anonymous user with guest ID
+      await db
+        .delete(roomMembers)
+        .where(
+          and(eq(roomMembers.roomId, roomId), eq(roomMembers.id, guestId)),
+        );
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Failed to leave room:", error);
+    return c.json({ error: "Failed to leave room" }, 500);
   }
 });
 

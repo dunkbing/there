@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 import { MeetingWorkspace } from "@/components/meeting-workspace";
 import { SoundSelector } from "@/components/sound-selector";
 import { MusicPlayer } from "@/components/music-player";
@@ -30,6 +31,15 @@ export default function RoomPage() {
   const [roomInfoOpen, setRoomInfoOpen] = useState(false);
   const [showUsernameDialog, setShowUsernameDialog] = useState(false);
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
+  const previousMembersRef = useRef<string[]>([]);
+
+  // Disable body scroll on mount, re-enable on unmount
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
 
   const closeAllPopups = () => {
     setSoundSelectorOpen(false);
@@ -71,6 +81,9 @@ export default function RoomPage() {
         if (response.ok) {
           const data = await response.json();
           setRoom(data);
+          // Initialize previous members list
+          previousMembersRef.current =
+            data.members?.map((m: any) => m.id) || [];
         }
       } catch (error) {
         console.error("Failed to fetch room:", error);
@@ -97,6 +110,29 @@ export default function RoomPage() {
         const response = await fetch(`/api/rooms/${roomId}`);
         if (response.ok) {
           const data = await response.json();
+
+          // Check for members who left
+          if (previousMembersRef.current.length > 0) {
+            const currentMemberIds = data.members.map((m: any) => m.id);
+            const leftMembers = previousMembersRef.current.filter(
+              (prevId) => !currentMemberIds.includes(prevId),
+            );
+
+            // Show toast for each member who left
+            leftMembers.forEach((leftMemberId) => {
+              const leftMember = room.members?.find(
+                (m) => m.id === leftMemberId,
+              );
+              if (leftMember) {
+                const memberName = leftMember.guestName || "Guest";
+                toast.info(`${memberName} left the room`);
+              }
+            });
+          }
+
+          // Update previous members list
+          previousMembersRef.current = data.members.map((m: any) => m.id);
+
           setRoom(data);
         }
       } catch (error) {
@@ -106,6 +142,25 @@ export default function RoomPage() {
 
     return () => clearInterval(pollInterval);
   }, [room, hasJoinedRoom, roomId]);
+
+  const leaveRoom = async () => {
+    try {
+      const guestId = localStorage.getItem(`guestId_${roomId}`);
+
+      await fetch("/api/rooms/leave", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          roomId,
+          guestId,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to leave room:", error);
+    }
+  };
 
   const joinRoom = async (guestName: string) => {
     try {
@@ -138,6 +193,9 @@ export default function RoomPage() {
         if (roomResponse.ok) {
           const data = await roomResponse.json();
           setRoom(data);
+          // Update previous members list after joining
+          previousMembersRef.current =
+            data.members?.map((m: any) => m.id) || [];
         }
       }
     } catch (error) {
@@ -174,9 +232,33 @@ export default function RoomPage() {
     joinRoom(username);
   };
 
+  // Handle disconnect when user leaves the room
+  useEffect(() => {
+    if (!hasJoinedRoom) return;
+
+    // Handle page unload (tab close, navigation, refresh)
+    const handleBeforeUnload = () => {
+      // Use sendBeacon for reliable disconnect on page unload
+      const guestId = localStorage.getItem(`guestId_${roomId}`);
+      const blob = new Blob([JSON.stringify({ roomId, guestId })], {
+        type: "application/json",
+      });
+      navigator.sendBeacon("/api/rooms/leave", blob);
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // Cleanup on component unmount
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      leaveRoom();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasJoinedRoom, roomId]);
+
   if (loading || sessionLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
+      <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading room...</p>
@@ -187,7 +269,7 @@ export default function RoomPage() {
 
   if (!room) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
+      <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground">Room not found</p>
         </div>
@@ -196,7 +278,7 @@ export default function RoomPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col">
       {/* Background decorations */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
@@ -206,8 +288,8 @@ export default function RoomPage() {
       {/* Room Header */}
       <RoomHeader room={room} />
 
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="grid lg:grid-cols-4 gap-6">
+      <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
+        <div className="grid lg:grid-cols-4 gap-6 h-full">
           {/* Main Content - Meeting Workspace */}
           <div className="lg:col-span-3 space-y-6">
             <MeetingWorkspace />
@@ -215,7 +297,14 @@ export default function RoomPage() {
 
           {/* Sidebar - Room Members & Chat */}
           <div className="lg:col-span-1 space-y-6">
-            <RoomMembers members={room.members || []} />
+            <RoomMembers
+              members={room.members || []}
+              currentUserId={
+                session?.user?.id ||
+                localStorage.getItem(`guestId_${roomId}`) ||
+                ""
+              }
+            />
             <RoomChat
               roomId={roomId}
               userId={
@@ -235,7 +324,7 @@ export default function RoomPage() {
       </div>
 
       {/* Feature Controls - Floating Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-60">
         <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-3 shadow-2xl">
           <div className="flex items-center gap-2">
             <Button
