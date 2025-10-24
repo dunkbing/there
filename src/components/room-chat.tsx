@@ -4,16 +4,27 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Send } from "lucide-react";
+import { useWebRTC } from "@/hooks/useWebRTC";
 
-interface ChatMessage {
+interface Member {
   id: string;
-  sender: string;
-  text: string;
-  timestamp: Date;
+  userId?: string | null;
 }
 
-export function RoomChat() {
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+interface RoomChatProps {
+  roomId: string;
+  userId: string;
+  userName: string;
+  members?: Member[];
+}
+
+export function RoomChat({ roomId, userId, userName, members = [] }: RoomChatProps) {
+  const { messages: chatMessages, sendMessage: sendWebRTCMessage } = useWebRTC(
+    roomId,
+    userId,
+    userName,
+    members
+  );
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -23,13 +34,7 @@ export function RoomChat() {
 
   const sendMessage = () => {
     if (chatInput.trim()) {
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        sender: "You",
-        text: chatInput,
-        timestamp: new Date(),
-      };
-      setChatMessages([...chatMessages, newMessage]);
+      sendWebRTCMessage(chatInput);
       setChatInput("");
     }
   };
@@ -52,7 +57,7 @@ export function RoomChat() {
                   {msg.sender}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {msg.timestamp.toLocaleTimeString([], {
+                  {new Date(msg.timestamp).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}

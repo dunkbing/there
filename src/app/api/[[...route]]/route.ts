@@ -153,7 +153,7 @@ app.get("/rooms/:id/members", async (c) => {
 // POST /api/rooms/join - Join a room
 app.post("/rooms/join", async (c) => {
   try {
-    const { roomId, guestName } = await c.req.json();
+    const { roomId, guestName, guestId } = await c.req.json();
     const session = await getSession();
 
     if (!roomId) {
@@ -186,19 +186,89 @@ app.post("/rooms/join", async (c) => {
           role: "member",
         });
       }
+    } else if (guestId) {
+      // Anonymous user with guest ID - check if already in room
+      const existingGuest = await db.query.roomMembers.findFirst({
+        where: and(
+          eq(roomMembers.roomId, roomId),
+          eq(roomMembers.id, guestId),
+        ),
+      });
+
+      if (!existingGuest) {
+        // Check if this guest ID exists but update their name
+        await db.insert(roomMembers).values({
+          id: guestId,
+          roomId,
+          guestName: guestName || "Guest",
+          role: "member",
+        });
+      }
     } else {
-      // Anonymous user
-      await db.insert(roomMembers).values({
+      // Anonymous user without guest ID (new guest)
+      const newMember = await db.insert(roomMembers).values({
         roomId,
         guestName: guestName || "Guest",
         role: "member",
-      });
+      }).returning();
+
+      return c.json({ success: true, guestId: newMember[0].id });
     }
 
     return c.json({ success: true });
   } catch (error) {
     console.error("Failed to join room:", error);
     return c.json({ error: "Failed to join room" }, 500);
+  }
+});
+
+// WebRTC Signaling - In-memory storage for signals
+const signalQueue = new Map<string, any[]>();
+
+// POST /api/webrtc/signal - Send WebRTC signal
+app.post("/webrtc/signal", async (c) => {
+  try {
+    const signal = await c.req.json();
+    const { roomId, to } = signal;
+
+    if (!roomId) {
+      return c.json({ error: "Room ID is required" }, 400);
+    }
+
+    // Store signal for the recipient
+    const key = `${roomId}:${to}`;
+    if (!signalQueue.has(key)) {
+      signalQueue.set(key, []);
+    }
+    signalQueue.get(key)!.push(signal);
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Failed to send signal:", error);
+    return c.json({ error: "Failed to send signal" }, 500);
+  }
+});
+
+// GET /api/webrtc/signal - Get pending signals
+app.get("/webrtc/signal", async (c) => {
+  try {
+    const roomId = c.req.query("roomId");
+    const userId = c.req.query("userId");
+
+    if (!roomId || !userId) {
+      return c.json({ error: "Room ID and User ID are required" }, 400);
+    }
+
+    const key = `${roomId}:${userId}`;
+    const signals = signalQueue.get(key) || [];
+
+    // Clear signals after retrieval
+    signalQueue.delete(key);
+
+    return c.json(signals);
+  } catch (error) {
+    console.error("Failed to get signals:", error);
+    return c.json({ error: "Failed to get signals" }, 500);
   }
 });
 

@@ -8,16 +8,19 @@ import { MusicPlayer } from "@/components/music-player";
 import { ThemeSelector } from "@/components/theme-selector";
 import { FocusDialog } from "@/components/focus-dialog";
 import { RoomInfoDialog } from "@/components/room-info-dialog";
+import { UsernameDialog } from "@/components/username-dialog";
 import { RoomHeader } from "@/components/room-header";
 import { RoomMembers } from "@/components/room-members";
 import { RoomChat } from "@/components/room-chat";
 import { Button } from "@/components/ui/button";
 import { Volume2, Music, Palette, Timer, Info } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
+import { useSession } from "@/lib/auth-client";
 
 export default function RoomPage() {
   const params = useParams();
   const roomId = params.id as string;
+  const { data: session, isPending: sessionLoading } = useSession();
   const [room, setRoom] = useState<RoomWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [soundSelectorOpen, setSoundSelectorOpen] = useState(false);
@@ -25,6 +28,8 @@ export default function RoomPage() {
   const [themeSelectorOpen, setThemeSelectorOpen] = useState(false);
   const [focusDialogOpen, setFocusDialogOpen] = useState(false);
   const [roomInfoOpen, setRoomInfoOpen] = useState(false);
+  const [showUsernameDialog, setShowUsernameDialog] = useState(false);
+  const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
 
   const closeAllPopups = () => {
     setSoundSelectorOpen(false);
@@ -83,7 +88,93 @@ export default function RoomPage() {
     }
   }, [room]);
 
-  if (loading) {
+  // Poll for room updates to keep members list fresh
+  useEffect(() => {
+    if (!room || !hasJoinedRoom) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/rooms/${roomId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setRoom(data);
+        }
+      } catch (error) {
+        console.error("Failed to poll room data:", error);
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [room, hasJoinedRoom, roomId]);
+
+  const joinRoom = async (guestName: string) => {
+    try {
+      // Get existing guest ID from localStorage
+      const guestId = localStorage.getItem(`guestId_${roomId}`);
+
+      const response = await fetch("/api/rooms/join", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          roomId,
+          guestName,
+          guestId,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+
+        // Store guest ID if this is a new guest
+        if (result.guestId && !guestId) {
+          localStorage.setItem(`guestId_${roomId}`, result.guestId);
+        }
+
+        setHasJoinedRoom(true);
+        // Refresh room data to update members list
+        const roomResponse = await fetch(`/api/rooms/${roomId}`);
+        if (roomResponse.ok) {
+          const data = await roomResponse.json();
+          setRoom(data);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to join room:", error);
+    }
+  };
+
+  // Auto-join authenticated users
+  useEffect(() => {
+    if (!sessionLoading && session?.user && room && !hasJoinedRoom) {
+      // Authenticated user - join without guest name
+      joinRoom("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionLoading, session, room, hasJoinedRoom]);
+
+  // Check if guest needs to enter username
+  useEffect(() => {
+    if (!sessionLoading && !session?.user && room && !hasJoinedRoom) {
+      const storedUsername = localStorage.getItem("guestUsername");
+      if (!storedUsername) {
+        setShowUsernameDialog(true);
+      } else {
+        // Auto-join with stored username
+        joinRoom(storedUsername);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionLoading, session, room, hasJoinedRoom]);
+
+  const handleUsernameSubmit = (username: string) => {
+    localStorage.setItem("guestUsername", username);
+    setShowUsernameDialog(false);
+    joinRoom(username);
+  };
+
+  if (loading || sessionLoading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
         <div className="text-center">
@@ -125,7 +216,12 @@ export default function RoomPage() {
           {/* Sidebar - Room Members & Chat */}
           <div className="lg:col-span-1 space-y-6">
             <RoomMembers members={room.members || []} />
-            <RoomChat />
+            <RoomChat
+              roomId={roomId}
+              userId={session?.user?.id || localStorage.getItem(`guestId_${roomId}`) || ""}
+              userName={session?.user?.name || localStorage.getItem("guestUsername") || "Guest"}
+              members={room.members || []}
+            />
           </div>
         </div>
       </div>
@@ -193,6 +289,10 @@ export default function RoomPage() {
       <RoomInfoDialog
         isOpen={roomInfoOpen}
         onClose={() => setRoomInfoOpen(false)}
+      />
+      <UsernameDialog
+        isOpen={showUsernameDialog}
+        onSubmit={handleUsernameSubmit}
       />
     </main>
   );

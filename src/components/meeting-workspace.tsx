@@ -1,68 +1,117 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Whiteboard } from "@/components/whiteboard";
-import { Video, Mic, MicOff, VideoOff, Phone, Pencil } from "lucide-react";
+import { Video, Mic, MicOff, VideoOff, Pencil } from "lucide-react";
 
 export function MeetingWorkspace() {
   const [activeTab, setActiveTab] = useState<"video" | "whiteboard">("video");
-  const [isMicOn, setIsMicOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isInCall, setIsInCall] = useState(false);
+  const [isMicOn, setIsMicOn] = useState(false);
+  const [isVideoOn, setIsVideoOn] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const startVideoCall = async () => {
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [stream]);
+
+  const toggleMic = async () => {
     try {
-      if (!isInCall) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+      if (!stream) {
+        // Request microphone permission
+        const newStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
+          video: false,
+        });
+
+        // Merge with existing video stream if available
+        if (videoRef.current?.srcObject) {
+          const existingStream = videoRef.current.srcObject as MediaStream;
+          const audioTrack = newStream.getAudioTracks()[0];
+          existingStream.addTrack(audioTrack);
+          setStream(existingStream);
+        } else {
+          if (videoRef.current) {
+            videoRef.current.srcObject = newStream;
+          }
+          setStream(newStream);
+        }
+
+        setIsMicOn(true);
+      } else {
+        // Toggle existing microphone
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          const newState = !isMicOn;
+          audioTracks.forEach((track) => {
+            track.enabled = newState;
+          });
+          setIsMicOn(newState);
+        } else {
+          // No audio track, request permission
+          const audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+          });
+          const audioTrack = audioStream.getAudioTracks()[0];
+          stream.addTrack(audioTrack);
+          setIsMicOn(true);
+        }
+      }
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      alert("Unable to access microphone. Please check permissions.");
+    }
+  };
+
+  const toggleVideo = async () => {
+    try {
+      if (!stream) {
+        // Request camera permission
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: true,
         });
 
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          videoRef.current.srcObject = newStream;
         }
-
-        setIsInCall(true);
+        setStream(newStream);
+        setIsVideoOn(true);
       } else {
-        if (videoRef.current && videoRef.current.srcObject) {
-          const tracks = (
-            videoRef.current.srcObject as MediaStream
-          ).getTracks();
-          tracks.forEach((track) => track.stop());
-          videoRef.current.srcObject = null;
+        // Toggle existing video
+        const videoTracks = stream.getVideoTracks();
+        if (videoTracks.length > 0) {
+          const newState = !isVideoOn;
+          videoTracks.forEach((track) => {
+            track.enabled = newState;
+          });
+          setIsVideoOn(newState);
+        } else {
+          // No video track, request permission
+          const videoStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: true,
+          });
+          const videoTrack = videoStream.getVideoTracks()[0];
+          stream.addTrack(videoTrack);
+
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+          setIsVideoOn(true);
         }
-        setIsInCall(false);
       }
     } catch (error) {
-      console.error("Error accessing media devices:", error);
-      alert("Unable to access camera/microphone. Please check permissions.");
-    }
-  };
-
-  const toggleMic = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (
-        videoRef.current.srcObject as MediaStream
-      ).getAudioTracks();
-      tracks.forEach((track) => {
-        track.enabled = !track.enabled;
-      });
-      setIsMicOn(!isMicOn);
-    }
-  };
-
-  const toggleVideo = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (
-        videoRef.current.srcObject as MediaStream
-      ).getVideoTracks();
-      tracks.forEach((track) => {
-        track.enabled = !track.enabled;
-      });
-      setIsVideoOn(!isVideoOn);
+      console.error("Error accessing camera:", error);
+      alert("Unable to access camera. Please check permissions.");
     }
   };
 
@@ -101,19 +150,20 @@ export function MeetingWorkspace() {
             <h3 className="text-lg font-semibold mb-4">Video Call</h3>
 
             {/* Video Preview */}
-            <div className="bg-black rounded-lg overflow-hidden mb-4 aspect-video flex items-center justify-center">
-              {isInCall ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="text-center text-muted-foreground">
-                  <Video className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>Camera is off</p>
+            <div className="bg-black rounded-lg overflow-hidden mb-4 aspect-video flex items-center justify-center relative">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+              {!isVideoOn && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                  <div className="text-center text-muted-foreground">
+                    <Video className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>Camera is off</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -121,48 +171,39 @@ export function MeetingWorkspace() {
             {/* Controls */}
             <div className="flex gap-3 justify-center">
               <Button
-                onClick={startVideoCall}
-                className={`gap-2 ${isInCall ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90"}`}
+                onClick={toggleMic}
+                variant="outline"
+                className={`gap-2 ${!isMicOn ? "bg-destructive/10 text-destructive border-destructive" : ""}`}
               >
-                {isInCall ? (
+                {isMicOn ? (
                   <>
-                    <Phone className="w-4 h-4" />
-                    End Call
+                    <Mic className="w-4 h-4" />
+                    <span>Microphone</span>
                   </>
                 ) : (
                   <>
-                    <Video className="w-4 h-4" />
-                    Start Call
+                    <MicOff className="w-4 h-4" />
+                    <span>Microphone</span>
                   </>
                 )}
               </Button>
-
-              {isInCall && (
-                <>
-                  <Button
-                    onClick={toggleMic}
-                    variant="outline"
-                    className={`gap-2 ${!isMicOn ? "bg-destructive/10 text-destructive" : ""}`}
-                  >
-                    {isMicOn ? (
-                      <Mic className="w-4 h-4" />
-                    ) : (
-                      <MicOff className="w-4 h-4" />
-                    )}
-                  </Button>
-                  <Button
-                    onClick={toggleVideo}
-                    variant="outline"
-                    className={`gap-2 ${!isVideoOn ? "bg-destructive/10 text-destructive" : ""}`}
-                  >
-                    {isVideoOn ? (
-                      <Video className="w-4 h-4" />
-                    ) : (
-                      <VideoOff className="w-4 h-4" />
-                    )}
-                  </Button>
-                </>
-              )}
+              <Button
+                onClick={toggleVideo}
+                variant="outline"
+                className={`gap-2 ${!isVideoOn ? "bg-destructive/10 text-destructive border-destructive" : ""}`}
+              >
+                {isVideoOn ? (
+                  <>
+                    <Video className="w-4 h-4" />
+                    <span>Camera</span>
+                  </>
+                ) : (
+                  <>
+                    <VideoOff className="w-4 h-4" />
+                    <span>Camera</span>
+                  </>
+                )}
+              </Button>
             </div>
           </Card>
         </div>
