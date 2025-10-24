@@ -26,6 +26,39 @@ export default function RoomPage() {
   const [focusDialogOpen, setFocusDialogOpen] = useState(false);
   const [roomInfoOpen, setRoomInfoOpen] = useState(false);
 
+  const closeAllPopups = () => {
+    setSoundSelectorOpen(false);
+    setMusicPlayerOpen(false);
+    setThemeSelectorOpen(false);
+    setFocusDialogOpen(false);
+    setRoomInfoOpen(false);
+  };
+
+  const openSoundSelector = () => {
+    closeAllPopups();
+    setSoundSelectorOpen(true);
+  };
+
+  const openMusicPlayer = () => {
+    closeAllPopups();
+    setMusicPlayerOpen(true);
+  };
+
+  const openThemeSelector = () => {
+    closeAllPopups();
+    setThemeSelectorOpen(true);
+  };
+
+  const openFocusDialog = () => {
+    closeAllPopups();
+    setFocusDialogOpen(true);
+  };
+
+  const openRoomInfo = () => {
+    closeAllPopups();
+    setRoomInfoOpen(true);
+  };
+
   useEffect(() => {
     const fetchRoom = async () => {
       try {
@@ -91,43 +124,47 @@ export default function RoomPage() {
         </div>
       </div>
 
-      {/* Feature Controls */}
-      <div className="fixed bottom-6 left-6 flex flex-col gap-3 z-40">
-        <Button
-          onClick={() => setSoundSelectorOpen(true)}
-          className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-          title="Ambient Sounds"
-        >
-          <Volume2 className="w-5 h-5" />
-        </Button>
-        <Button
-          onClick={() => setMusicPlayerOpen(true)}
-          className="rounded-full w-12 h-12 p-0 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg transition-all hover:scale-110"
-          title="Music Player"
-        >
-          <Music className="w-5 h-5" />
-        </Button>
-        <Button
-          onClick={() => setThemeSelectorOpen(true)}
-          className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
-          title="Change Theme"
-        >
-          <Palette className="w-5 h-5" />
-        </Button>
-        <Button
-          onClick={() => setFocusDialogOpen(true)}
-          className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-          title="Focus Timer"
-        >
-          <Timer className="w-5 h-5" />
-        </Button>
-        <Button
-          onClick={() => setRoomInfoOpen(true)}
-          className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
-          title="Room Info"
-        >
-          <Info className="w-5 h-5" />
-        </Button>
+      {/* Feature Controls - Floating Bar */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]">
+        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-3 shadow-2xl">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={openSoundSelector}
+              className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+              title="Ambient Sounds"
+            >
+              <Volume2 className="w-5 h-5" />
+            </Button>
+            <Button
+              onClick={openMusicPlayer}
+              className="rounded-full w-12 h-12 p-0 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg transition-all hover:scale-110"
+              title="Music Player"
+            >
+              <Music className="w-5 h-5" />
+            </Button>
+            <Button
+              onClick={openThemeSelector}
+              className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
+              title="Change Theme"
+            >
+              <Palette className="w-5 h-5" />
+            </Button>
+            <Button
+              onClick={openFocusDialog}
+              className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+              title="Focus Timer"
+            >
+              <Timer className="w-5 h-5" />
+            </Button>
+            <Button
+              onClick={openRoomInfo}
+              className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
+              title="Room Info"
+            >
+              <Info className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Popups */}

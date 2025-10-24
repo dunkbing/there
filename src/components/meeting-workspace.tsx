@@ -7,7 +7,6 @@ import { Whiteboard } from "@/components/whiteboard";
 import { Video, Mic, MicOff, VideoOff, Phone, Pencil } from "lucide-react";
 
 export function MeetingWorkspace() {
-  const [participants, setParticipants] = useState(1);
   const [activeTab, setActiveTab] = useState<"video" | "whiteboard">("video");
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
@@ -27,7 +26,6 @@ export function MeetingWorkspace() {
         }
 
         setIsInCall(true);
-        setParticipants(2);
       } else {
         if (videoRef.current && videoRef.current.srcObject) {
           const tracks = (
@@ -37,7 +35,6 @@ export function MeetingWorkspace() {
           videoRef.current.srcObject = null;
         }
         setIsInCall(false);
-        setParticipants(1);
       }
     } catch (error) {
       console.error("Error accessing media devices:", error);
@@ -166,18 +163,6 @@ export function MeetingWorkspace() {
                   </Button>
                 </>
               )}
-            </div>
-
-            {/* Participants */}
-            <div className="mt-6 p-4 bg-secondary/10 rounded-lg">
-              <p className="text-sm font-medium mb-2">
-                Participants: {participants}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {isInCall
-                  ? "You are in a call"
-                  : "Start a call to invite others"}
-              </p>
             </div>
           </Card>
         </div>
