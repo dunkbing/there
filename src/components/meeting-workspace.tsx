@@ -36,7 +36,8 @@ export function MeetingWorkspace({
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [stream]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run cleanup on unmount, not when stream changes
 
   const toggleMic = async () => {
     try {
