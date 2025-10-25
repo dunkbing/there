@@ -8,6 +8,7 @@ import { Video, Mic, MicOff, VideoOff, Pencil } from "lucide-react";
 import type { RoomMemberWithRelations } from "@/lib/schemas";
 
 interface MeetingWorkspaceProps {
+  roomId: string;
   members: RoomMemberWithRelations[];
   currentUserId: string;
 }

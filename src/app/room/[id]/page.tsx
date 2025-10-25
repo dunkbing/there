@@ -32,6 +32,7 @@ export default function RoomPage() {
   const [showUsernameDialog, setShowUsernameDialog] = useState(false);
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const previousMembersRef = useRef<string[]>([]);
+  const joiningRef = useRef(false);
 
   // Disable body scroll on mount, re-enable on unmount
   useEffect(() => {
@@ -74,21 +75,39 @@ export default function RoomPage() {
     setRoomInfoOpen(true);
   };
 
+  // Fetch room data immediately on mount (don't wait for session)
   useEffect(() => {
     const fetchRoom = async () => {
+      console.time(`[RoomPage ${roomId}] Room fetch`);
       try {
-        const response = await fetch(`/api/rooms/${roomId}`);
+        const response = await fetch(`/api/rooms/${roomId}`, {
+          // Add cache control to potentially reuse recent fetches
+          cache: "default",
+        });
+        console.timeEnd(`[RoomPage ${roomId}] Room fetch`);
+
         if (response.ok) {
           const data = await response.json();
+          console.log(
+            `[RoomPage ${roomId}] Room data loaded:`,
+            data.name,
+            `(${data.members?.length || 0} members)`,
+          );
           setRoom(data);
           // Initialize previous members list
           previousMembersRef.current =
             data.members?.map((m: any) => m.id) || [];
+        } else {
+          console.error(
+            `[RoomPage ${roomId}] Room fetch failed with status:`,
+            response.status,
+          );
         }
       } catch (error) {
-        console.error("Failed to fetch room:", error);
+        console.error(`[RoomPage ${roomId}] Failed to fetch room:`, error);
       } finally {
         setLoading(false);
+        console.log(`[RoomPage ${roomId}] Loading state set to false`);
       }
     };
 
@@ -163,7 +182,14 @@ export default function RoomPage() {
   };
 
   const joinRoom = async (guestName: string) => {
+    // Prevent duplicate join requests (especially in React Strict Mode)
+    if (joiningRef.current) {
+      return;
+    }
+
     try {
+      joiningRef.current = true;
+
       // Get existing guest ID from localStorage
       const guestId = localStorage.getItem(`guestId_${roomId}`);
 
@@ -200,6 +226,8 @@ export default function RoomPage() {
       }
     } catch (error) {
       console.error("Failed to join room:", error);
+    } finally {
+      joiningRef.current = false;
     }
   };
 
@@ -256,12 +284,47 @@ export default function RoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasJoinedRoom, roomId]);
 
-  if (loading || sessionLoading) {
+  // Show skeleton loader with page structure while loading
+  if (loading) {
     return (
-      <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading room...</p>
+      <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col">
+        {/* Background decorations */}
+        <div className="fixed inset-0 -z-10 overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-20 animate-pulse" />
+        </div>
+
+        {/* Skeleton Header */}
+        <div className="border-b bg-background/50 backdrop-blur-sm">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-8 w-32 bg-muted/20 rounded animate-pulse" />
+              <div className="h-4 w-24 bg-muted/10 rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Content */}
+        <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
+          <div className="grid lg:grid-cols-4 gap-6 h-full">
+            <div className="lg:col-span-3">
+              <div className="h-full bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
+            </div>
+            <div className="lg:col-span-1 space-y-6">
+              <div className="h-32 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
+              <div className="h-96 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Loading indicator */}
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
+          <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-primary/60 border-t-primary rounded-full animate-spin" />
+            <span className="text-sm text-muted-foreground">
+              Loading room...
+            </span>
+          </div>
         </div>
       </main>
     );
@@ -270,8 +333,14 @@ export default function RoomPage() {
   if (!room) {
     return (
       <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground">Room not found</p>
+        <div className="text-center space-y-4">
+          <p className="text-lg text-muted-foreground">Room not found</p>
+          <Button
+            onClick={() => (window.location.href = "/")}
+            variant="outline"
+          >
+            Go back home
+          </Button>
         </div>
       </main>
     );
@@ -299,6 +368,7 @@ export default function RoomPage() {
                 localStorage.getItem(`guestId_${roomId}`) ||
                 ""
               }
+              roomId={roomId}
             />
           </div>
 
