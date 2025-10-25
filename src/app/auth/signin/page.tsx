@@ -37,7 +37,7 @@ export default function SignInPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-linear-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
       {/* Background decorations */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
@@ -55,7 +55,7 @@ export default function SignInPage() {
 
         <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-8 space-y-6">
           <div className="text-center">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl font-bold bg-linear-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
               Sign In
             </h1>
             <p className="text-muted-foreground">

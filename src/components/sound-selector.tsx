@@ -458,7 +458,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
         onClick={onClose}
       />
 
-      <div className="relative z-[70] w-80 max-h-96 overflow-y-auto backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+      <div className="relative z-70 w-80 max-h-96 overflow-y-auto backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-foreground">Ambient Sounds</h3>
           <Button
@@ -478,7 +478,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
               onClick={toggleMute}
               variant="outline"
               size="sm"
-              className="flex-shrink-0 bg-transparent"
+              className="shrink-0 bg-transparent"
             >
               {isMuted ? (
                 <VolumeX className="w-4 h-4" />
@@ -513,7 +513,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
                 }`}
               >
                 <div
-                  className={`bg-gradient-to-br ${sound.color} rounded-md p-3 mb-2 flex items-center justify-center`}
+                  className={`bg-linear-to-br ${sound.color} rounded-md p-3 mb-2 flex items-center justify-center`}
                 >
                   {playingSound === sound.id ? (
                     <Pause className="w-5 h-5 text-white" />

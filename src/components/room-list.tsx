@@ -3,25 +3,21 @@
 import { useEffect, useState } from "react";
 import { Users, Lock, Globe } from "lucide-react";
 import Link from "next/link";
-
-interface Room {
-  id: string;
-  name: string;
-  description: string | null;
-  isPublic: boolean;
-  memberCount: number;
-}
+import { roomClient } from "@/api/client";
+import { SelectRoom } from "@/lib/schemas";
 
 export function RoomList() {
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [rooms, setRooms] = useState<SelectRoom[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        const response = await fetch("/api/rooms");
-        const data = await response.json();
-        setRooms(data);
+        const response = await roomClient.rooms.$get();
+        const res = await response.json();
+        if ("data" in res) {
+          setRooms(res.data);
+        }
       } catch (error) {
         console.error("Failed to fetch rooms:", error);
       } finally {
@@ -66,7 +62,7 @@ export function RoomList() {
           <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 hover:bg-white/20 dark:hover:bg-white/10 transition-all cursor-pointer h-full flex flex-col">
             <div className="flex items-start justify-between mb-4">
               <h3 className="text-lg font-semibold flex-1">{room.name}</h3>
-              {room.isPublic ? (
+              {room.public ? (
                 <Globe className="w-4 h-4 text-primary" />
               ) : (
                 <Lock className="w-4 h-4 text-accent" />
@@ -79,7 +75,7 @@ export function RoomList() {
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="w-4 h-4" />
-              {room.memberCount} member{room.memberCount !== 1 ? "s" : ""}
+              {/*{room.memberCount} member{room.memberCount !== 1 ? "s" : ""}*/}
             </div>
           </div>
         </Link>

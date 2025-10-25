@@ -16,7 +16,7 @@ export default function Home() {
 
   if (isPending) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
+      <main className="min-h-screen bg-linear-to-br from-background via-background to-primary/5 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading...</p>
@@ -26,7 +26,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <main className="min-h-screen bg-linear-to-br from-background via-background to-primary/5">
       {/* Background decorations */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />

@@ -10,8 +10,8 @@ export const rooms = pgTable("rooms", {
   description: text("description"),
   createdBy: uuid("created_by").references(() => users.id),
   public: boolean("public").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().$type<string>(),
+  updatedAt: timestamp("updated_at").defaultNow().$type<string>(),
 });
 
 export const roomsRelations = relations(rooms, ({ one, many }) => ({

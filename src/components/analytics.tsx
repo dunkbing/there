@@ -92,7 +92,7 @@ export function Analytics() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Current Streak */}
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-border p-6">
+        <Card className="bg-linear-to-br from-primary/10 to-primary/5 border-border p-6">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">
@@ -108,7 +108,7 @@ export function Analytics() {
         </Card>
 
         {/* Longest Streak */}
-        <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-border p-6">
+        <Card className="bg-linear-to-br from-accent/10 to-accent/5 border-border p-6">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">
@@ -124,7 +124,7 @@ export function Analytics() {
         </Card>
 
         {/* Total Sessions */}
-        <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-border p-6">
+        <Card className="bg-linear-to-br from-secondary/10 to-secondary/5 border-border p-6">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">
@@ -140,7 +140,7 @@ export function Analytics() {
         </Card>
 
         {/* Total Focus Time */}
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-border p-6">
+        <Card className="bg-linear-to-br from-primary/10 to-primary/5 border-border p-6">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">
@@ -200,7 +200,7 @@ export function Analytics() {
         </div>
       </Card>
 
-      <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-border p-6">
+      <Card className="bg-linear-to-br from-primary/5 to-accent/5 border-border p-6">
         <h3 className="text-lg font-semibold mb-3">Keep Your Streak Going</h3>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">

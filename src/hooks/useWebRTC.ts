@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Pusher, { Channel } from "pusher-js";
+import { roomClient } from "@/api/client";
 
 interface ChatMessage {
   id: string;
@@ -60,10 +61,11 @@ export function useWebRTC(
   const sendSignal = useCallback(
     async (signal: SignalData) => {
       try {
-        const response = await fetch("/api/webrtc/signal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId, ...signal }),
+        const response = await roomClient.webrtc.signal.$post({
+          json: {
+            roomId,
+            ...signal,
+          },
         });
 
         if (!response.ok) {
@@ -535,11 +537,14 @@ export function useWebRTC(
     if (isCleaningUpRef.current) return;
 
     try {
-      const response = await fetch(`/api/webrtc/signals/${roomId}/${userId}`);
+      const response = await roomClient.webrtc.signals[":roomId"][
+        ":userId"
+      ].$get({ param: { roomId, userId } });
       if (response.ok && !isCleaningUpRef.current) {
-        const { signals } = await response.json();
+        const res = await response.json();
+        const { signals } = res;
 
-        for (const signal of signals) {
+        for (const signal of signals as any[]) {
           if (isCleaningUpRef.current) break;
 
           if (signal.type === "offer") {

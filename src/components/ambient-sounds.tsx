@@ -447,7 +447,7 @@ export function AmbientSounds() {
             onClick={() => playSound(sound.id)}
           >
             <div
-              className={`bg-gradient-to-br ${sound.color} rounded-lg p-8 mb-4 flex items-center justify-center`}
+              className={`bg-linear-to-br ${sound.color} rounded-lg p-8 mb-4 flex items-center justify-center`}
             >
               {playingSound === sound.id ? (
                 <Pause className="w-8 h-8 text-white" />

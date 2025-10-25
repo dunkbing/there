@@ -11,7 +11,7 @@ export const roomMembers = pgTable("room_members", {
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   guestName: text("guest_name"), // For anonymous users
   role: text("role").default("member"), // 'creator', 'member'
-  joinedAt: timestamp("joined_at").defaultNow(),
+  joinedAt: timestamp("joined_at").defaultNow().$type<string>(),
 });
 
 export const roomMembersRelations = relations(roomMembers, ({ one }) => ({

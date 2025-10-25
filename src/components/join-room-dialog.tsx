@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { roomClient } from "@/api/client";
 
 interface JoinRoomDialogProps {
   isOpen: boolean;
@@ -22,13 +23,11 @@ export function JoinRoomDialog({ isOpen, onClose }: JoinRoomDialogProps) {
 
     setLoading(true);
     try {
-      const response = await fetch("/api/rooms/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await roomClient.rooms.join.$post({
+        json: {
           roomId,
           guestName: guestName || "Guest",
-        }),
+        },
       });
 
       if (response.ok) {

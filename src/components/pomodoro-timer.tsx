@@ -130,7 +130,7 @@ export function PomodoroTimer() {
 
   return (
     <div className="space-y-6">
-      <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl bg-gradient-to-br from-primary/15 via-accent/10 to-secondary/15 border-white/30 shadow-2xl shadow-primary/20 p-12">
+      <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl bg-linear-to-br from-primary/15 via-accent/10 to-secondary/15 border-white/30 shadow-2xl shadow-primary/20 p-12">
         <div className="text-center">
           <div className="mb-8">
             <p className="text-lg font-semibold text-primary mb-3">

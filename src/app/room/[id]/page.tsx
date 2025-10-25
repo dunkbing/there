@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Volume2, Music, Palette, Timer, Info } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 import { useSession } from "@/lib/auth-client";
+import { roomClient } from "@/api/client";
 
 export default function RoomPage() {
   const params = useParams();
@@ -98,9 +99,8 @@ export default function RoomPage() {
     const fetchRoom = async () => {
       console.time(`[RoomPage ${roomId}] Room fetch`);
       try {
-        const response = await fetch(`/api/rooms/${roomId}`, {
-          // Add cache control to potentially reuse recent fetches
-          cache: "default",
+        const response = await roomClient.rooms[":id"].$get({
+          param: { id: roomId },
         });
         console.timeEnd(`[RoomPage ${roomId}] Room fetch`);
 
@@ -144,7 +144,9 @@ export default function RoomPage() {
 
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/rooms/${roomId}`);
+        const response = await roomClient.rooms[":id"].$get({
+          param: { id: roomId },
+        });
         if (response.ok) {
           const data = await response.json();
 
@@ -183,17 +185,7 @@ export default function RoomPage() {
   const leaveRoom = async () => {
     try {
       const guestId = localStorage.getItem(`guestId_${roomId}`);
-
-      await fetch("/api/rooms/leave", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          roomId,
-          guestId,
-        }),
-      });
+      await roomClient.rooms.leave.$post({ json: { roomId, guestId } });
     } catch (error) {
       console.error("Failed to leave room:", error);
     }
@@ -211,16 +203,12 @@ export default function RoomPage() {
       // Get existing guest ID from localStorage
       const guestId = localStorage.getItem(`guestId_${roomId}`);
 
-      const response = await fetch("/api/rooms/join", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const response = await roomClient.rooms.join.$post({
+        json: {
           roomId,
           guestName,
           guestId,
-        }),
+        },
       });
 
       if (response.ok) {
@@ -233,7 +221,9 @@ export default function RoomPage() {
 
         setHasJoinedRoom(true);
         // Refresh room data to update members list
-        const roomResponse = await fetch(`/api/rooms/${roomId}`);
+        const roomResponse = await roomClient.rooms[":id"].$get({
+          param: { id: roomId },
+        });
         if (roomResponse.ok) {
           const data = await roomResponse.json();
           setRoom(data);
