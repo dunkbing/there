@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Volume2, Music, Palette, Timer, Info } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 import { useSession } from "@/lib/auth-client";
-import { useWebRTC } from "@/hooks/useWebRTC";
 
 export default function RoomPage() {
   const params = useParams();
@@ -32,9 +31,12 @@ export default function RoomPage() {
   const [roomInfoOpen, setRoomInfoOpen] = useState(false);
   const [showUsernameDialog, setShowUsernameDialog] = useState(false);
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentUserName, setCurrentUserName] = useState("Guest");
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatSendMessage, setChatSendMessage] = useState<
+    (text: string) => void
+  >(() => () => {});
   const previousMembersRef = useRef<string[]>([]);
   const joiningRef = useRef(false);
 
@@ -49,15 +51,6 @@ export default function RoomPage() {
       );
     }
   }, [session, roomId]);
-
-  // Initialize WebRTC for chat and video
-  const { messages, sendMessage, remoteStreams } = useWebRTC(
-    roomId,
-    currentUserId,
-    currentUserName,
-    room?.members || [],
-    localStream,
-  );
 
   // Disable body scroll on mount, re-enable on unmount
   useEffect(() => {
@@ -182,7 +175,7 @@ export default function RoomPage() {
       } catch (error) {
         console.error("Failed to poll room data:", error);
       }
-    }, 5000); // Poll every 5 seconds
+    }, 10000);
 
     return () => clearInterval(pollInterval);
   }, [room, hasJoinedRoom, roomId]);
@@ -311,48 +304,7 @@ export default function RoomPage() {
 
   // Show skeleton loader with page structure while loading
   if (loading) {
-    return (
-      <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col">
-        {/* Background decorations */}
-        <div className="fixed inset-0 -z-10 overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-        </div>
-
-        {/* Skeleton Header */}
-        <div className="border-b bg-background/50 backdrop-blur-sm">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="h-8 w-32 bg-muted/20 rounded animate-pulse" />
-              <div className="h-4 w-24 bg-muted/10 rounded animate-pulse" />
-            </div>
-          </div>
-        </div>
-
-        {/* Skeleton Content */}
-        <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
-          <div className="grid lg:grid-cols-4 gap-6 h-full">
-            <div className="lg:col-span-3">
-              <div className="h-full bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-            </div>
-            <div className="lg:col-span-1 space-y-6">
-              <div className="h-32 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-              <div className="h-96 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-            </div>
-          </div>
-        </div>
-
-        {/* Loading indicator */}
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
-          <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-primary/60 border-t-primary rounded-full animate-spin" />
-            <span className="text-sm text-muted-foreground">
-              Loading room...
-            </span>
-          </div>
-        </div>
-      </main>
-    );
+    return <Skeleton />;
   }
 
   if (!room) {
@@ -389,9 +341,12 @@ export default function RoomPage() {
             <MeetingWorkspace
               members={room.members || []}
               currentUserId={currentUserId}
-              localStream={localStream}
-              onStreamChange={setLocalStream}
-              remoteStreams={remoteStreams}
+              currentUserName={currentUserName}
+              roomId={roomId}
+              onChatUpdate={(messages, sendMessage) => {
+                setChatMessages(messages);
+                setChatSendMessage(() => sendMessage);
+              }}
             />
           </div>
 
@@ -401,7 +356,7 @@ export default function RoomPage() {
               members={room.members || []}
               currentUserId={currentUserId}
             />
-            <RoomChat messages={messages} onSendMessage={sendMessage} />
+            <RoomChat messages={chatMessages} onSendMessage={chatSendMessage} />
           </div>
         </div>
       </div>
@@ -474,6 +429,49 @@ export default function RoomPage() {
         isOpen={showUsernameDialog}
         onSubmit={handleUsernameSubmit}
       />
+    </main>
+  );
+}
+
+function Skeleton() {
+  return (
+    <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col">
+      {/* Background decorations */}
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-20 animate-pulse" />
+      </div>
+
+      {/* Skeleton Header */}
+      <div className="border-b bg-background/50 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-8 w-32 bg-muted/20 rounded animate-pulse" />
+            <div className="h-4 w-24 bg-muted/10 rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+
+      {/* Skeleton Content */}
+      <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
+        <div className="grid lg:grid-cols-4 gap-6 h-full">
+          <div className="lg:col-span-3">
+            <div className="h-full bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
+          </div>
+          <div className="lg:col-span-1 space-y-6">
+            <div className="h-32 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
+            <div className="h-96 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
+          </div>
+        </div>
+      </div>
+
+      {/* Loading indicator */}
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
+        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-primary/60 border-t-primary rounded-full animate-spin" />
+          <span className="text-sm text-muted-foreground">Loading room...</span>
+        </div>
+      </div>
     </main>
   );
 }

@@ -1,12 +1,13 @@
 import { Hono } from "hono";
-import { handle } from "hono/vercel";
+import { upgradeWebSocket } from "hono/bun";
 import Pusher from "pusher";
 import { db } from "@/lib/db";
 import { rooms, roomMembers, roomSettings } from "@/lib/schemas";
 import { getSession } from "@/lib/session";
 import { eq, and } from "drizzle-orm";
+import { cacheClient } from "@/lib/cache";
 
-const app = new Hono().basePath("/api");
+export const roomRoute = new Hono();
 
 // Initialize Pusher
 const pusher = new Pusher({
@@ -18,7 +19,7 @@ const pusher = new Pusher({
 });
 
 // GET /api/rooms - Get user's rooms
-app.get("/rooms", async (c) => {
+roomRoute.get("/rooms", async (c) => {
   try {
     const session = await getSession();
 
@@ -39,7 +40,7 @@ app.get("/rooms", async (c) => {
 });
 
 // POST /api/rooms - Create a new room
-app.post("/rooms", async (c) => {
+roomRoute.post("/rooms", async (c) => {
   try {
     const session = await getSession();
     const { name, description, isPublic } = await c.req.json();
@@ -77,7 +78,7 @@ app.post("/rooms", async (c) => {
 });
 
 // GET /api/rooms/:id - Get room details
-app.get("/rooms/:id", async (c) => {
+roomRoute.get("/rooms/:id", async (c) => {
   try {
     const roomId = c.req.param("id");
 
@@ -106,7 +107,7 @@ app.get("/rooms/:id", async (c) => {
 });
 
 // PUT /api/rooms/:id - Update room settings
-app.put("/rooms/:id", async (c) => {
+roomRoute.put("/rooms/:id", async (c) => {
   try {
     const roomId = c.req.param("id");
     const {
@@ -135,7 +136,7 @@ app.put("/rooms/:id", async (c) => {
 });
 
 // GET /api/rooms/:id/members - Get room members
-app.get("/rooms/:id/members", async (c) => {
+roomRoute.get("/rooms/:id/members", async (c) => {
   try {
     const roomId = c.req.param("id");
 
@@ -154,7 +155,7 @@ app.get("/rooms/:id/members", async (c) => {
 });
 
 // POST /api/rooms/join - Join a room
-app.post("/rooms/join", async (c) => {
+roomRoute.post("/rooms/join", async (c) => {
   try {
     const { roomId, guestName, guestId } = await c.req.json();
     const session = await getSession();
@@ -226,7 +227,7 @@ app.post("/rooms/join", async (c) => {
 });
 
 // POST /api/rooms/leave - Leave a room
-app.post("/rooms/leave", async (c) => {
+roomRoute.post("/rooms/leave", async (c) => {
   try {
     const { roomId, guestId } = await c.req.json();
     const session = await getSession();
@@ -262,25 +263,57 @@ app.post("/rooms/leave", async (c) => {
   }
 });
 
-// POST /api/webrtc/signal - Send WebRTC signal via Pusher
-app.post("/webrtc/signal", async (c) => {
+// POST /api/webrtc/signal - Send WebRTC signal
+roomRoute.post("/webrtc/signal", async (c) => {
   try {
     const signal = await c.req.json();
     const { roomId, to, type, data, from } = signal;
 
+    console.log(
+      `[API] Received signal: roomId=${roomId}, to=${to}, from=${from}, type=${type}`,
+    );
+
     if (!roomId || !to) {
-      return c.json({ error: "Room ID and recipient are required" }, 400);
+      console.error(`[API] Validation failed: roomId=${roomId}, to=${to}`);
+      return c.json(
+        {
+          error: "Room ID and recipient are required",
+          received: { roomId, to, from, type },
+        },
+        400,
+      );
     }
 
-    // Send signal to room channel via Pusher
-    const channel = `room-${roomId}`;
-    console.log("triggering channel", channel);
-    await pusher.trigger(channel, "webrtc-signal", {
+    // Store signal in Redis queue for the recipient
+    const queueKey = `signal_queue:${roomId}:${to}`;
+    const signalData = JSON.stringify({
       type,
       data,
       from,
       to,
+      timestamp: Date.now(),
     });
+
+    // Add signal to the end of the list
+    await cacheClient.rpush(queueKey, signalData);
+
+    // Keep queue size reasonable (last 50 signals)
+    // LTRIM keeps elements from -50 to -1 (last 50 elements)
+    await cacheClient.ltrim(queueKey, -50, -1);
+
+    // Set expiration on the queue (1 hour)
+    await cacheClient.expire(queueKey, 3600);
+
+    // Notify via Pusher that a signal is ready (small notification only)
+    const channel = `room-${roomId}`;
+    try {
+      await pusher.trigger(channel, "webrtc-signal-notification", {
+        to,
+        from,
+      });
+    } catch (pusherError) {
+      console.warn("Pusher notification failed (non-critical):", pusherError);
+    }
 
     return c.json({ success: true });
   } catch (error) {
@@ -289,8 +322,40 @@ app.post("/webrtc/signal", async (c) => {
   }
 });
 
-export const GET = handle(app);
-export const POST = handle(app);
-export const PUT = handle(app);
-export const DELETE = handle(app);
-export const PATCH = handle(app);
+// GET /api/webrtc/signals/:roomId/:userId - Poll for pending signals
+roomRoute.get("/webrtc/signals/:roomId/:userId", async (c) => {
+  try {
+    const roomId = c.req.param("roomId");
+    const userId = c.req.param("userId");
+    const queueKey = `signal_queue:${roomId}:${userId}`;
+
+    // Get all signals from Redis list
+    const rawSignals = await cacheClient.lrange(queueKey, 0, -1);
+
+    // Parse JSON signals
+    const signals = rawSignals.map((signal: string) => JSON.parse(signal));
+
+    // Clear the queue after retrieving
+    await cacheClient.del(queueKey);
+
+    return c.json({ signals });
+  } catch (error) {
+    console.error("Failed to fetch signals:", error);
+    return c.json({ error: "Failed to fetch signals" }, 500);
+  }
+});
+
+roomRoute.get(
+  "/ws",
+  upgradeWebSocket((c) => {
+    return {
+      onMessage(event, ws) {
+        console.log(`Message from client: ${event.data}`);
+        ws.send("Hello from server!");
+      },
+      onClose: () => {
+        console.log("Connection closed");
+      },
+    };
+  }),
+);

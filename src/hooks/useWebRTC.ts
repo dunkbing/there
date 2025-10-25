@@ -18,6 +18,11 @@ interface SignalData {
 interface Member {
   id: string;
   userId?: string | null;
+  user?: {
+    id: string;
+    name?: string | null;
+  };
+  guestName?: string | null;
 }
 
 export function useWebRTC(
@@ -27,6 +32,10 @@ export function useWebRTC(
   members: Member[] = [],
   localStream: MediaStream | null = null,
 ) {
+  useEffect(() => {
+    console.log(`[useWebRTC] Initialized for room=${roomId}, user=${userId}`);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectedPeers, setConnectedPeers] = useState<Set<string>>(new Set());
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(
@@ -40,18 +49,35 @@ export function useWebRTC(
     new Map(),
   );
   const localStreamRef = useRef<MediaStream | null>(localStream);
+  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+  const isCleaningUpRef = useRef(false);
 
-  const sendSignal = async (signal: SignalData) => {
-    try {
-      await fetch("/api/webrtc/signal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, ...signal }),
-      });
-    } catch (error) {
-      console.error("Failed to send signal:", error);
-    }
-  };
+  // Keep remoteStreamsRef in sync with remoteStreams state
+  useEffect(() => {
+    remoteStreamsRef.current = remoteStreams;
+  }, [remoteStreams]);
+
+  const sendSignal = useCallback(
+    async (signal: SignalData) => {
+      try {
+        const response = await fetch("/api/webrtc/signal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId, ...signal }),
+        });
+
+        if (!response.ok) {
+          console.error(
+            `Failed to send ${signal.type} signal:`,
+            response.status,
+          );
+        }
+      } catch (error) {
+        console.error("Failed to send signal:", error);
+      }
+    },
+    [roomId],
+  );
 
   // Update local stream ref when it changes
   useEffect(() => {
@@ -60,48 +86,80 @@ export function useWebRTC(
 
     // Renegotiate with all peers when stream changes
     const renegotiateWithPeers = async () => {
-      if (!localStream && !previousStream) return; // No change
+      // Only renegotiate if we have established connections
+      if (
+        peersRef.current.size === 0 ||
+        (!localStream && !previousStream) ||
+        isCleaningUpRef.current
+      ) {
+        return;
+      }
+
+      const trackInfo = localStream?.getTracks().map((t) => t.kind) || [];
+      console.log(
+        `🔄 [${userId}] Renegotiating with ${peersRef.current.size} peer(s), my tracks: [${trackInfo.join(", ")}]`,
+      );
 
       for (const [peerId, pc] of peersRef.current.entries()) {
         try {
-          // Remove old senders
-          const senders = pc.getSenders();
-          for (const sender of senders) {
-            pc.removeTrack(sender);
+          // Skip if peer connection is not in a good state
+          if (
+            pc.signalingState === "closed" ||
+            pc.connectionState === "closed"
+          ) {
+            continue;
           }
 
-          // Add new tracks from the updated stream
-          if (localStream) {
-            localStream.getTracks().forEach((track) => {
-              console.log(`Adding ${track.kind} track to peer ${peerId}`);
-              pc.addTrack(track, localStream);
-            });
+          // Only renegotiate if in stable state
+          if (pc.signalingState !== "stable") {
+            console.log(
+              `Skipping renegotiation with ${peerId}, signaling state: ${pc.signalingState}`,
+            );
+            continue;
+          }
+
+          const currentTracks = localStream?.getTracks() || [];
+          const transceivers = pc.getTransceivers();
+
+          // Update each transceiver with the appropriate track
+          for (const transceiver of transceivers) {
+            const kind = transceiver.receiver.track.kind;
+            const sender = transceiver.sender;
+            const currentTrack = sender.track;
+            const newTrack = currentTracks.find((t) => t.kind === kind);
+
+            if (currentTrack && newTrack && newTrack.id !== currentTrack.id) {
+              await sender.replaceTrack(newTrack);
+            } else if (currentTrack && !newTrack) {
+              await sender.replaceTrack(null);
+            } else if (!currentTrack && newTrack) {
+              await sender.replaceTrack(newTrack);
+            }
           }
 
           // Create new offer to renegotiate
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
 
-          // Send the new offer
           await sendSignal({
             type: "offer",
             data: offer,
             from: userId,
             to: peerId,
           });
-
-          console.log(`Renegotiated connection with peer ${peerId}`);
         } catch (error) {
           console.error(`Failed to renegotiate with peer ${peerId}:`, error);
         }
       }
     };
 
-    renegotiateWithPeers();
-  }, [localStream, userId]);
+    // Debounce renegotiation to avoid rapid-fire updates
+    const timeoutId = setTimeout(renegotiateWithPeers, 100);
+    return () => clearTimeout(timeoutId);
+  }, [localStream, userId, sendSignal]);
 
   const createPeerConnection = useCallback(
-    (peerId: string) => {
+    (peerId: string, isOfferer: boolean = false) => {
       const pc = new RTCPeerConnection({
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
@@ -109,25 +167,53 @@ export function useWebRTC(
         ],
       });
 
-      // Add local tracks to peer connection
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current!);
-        });
+      // Only create transceivers if we're the offerer
+      // The answerer will get transceivers from the incoming offer
+      if (isOfferer) {
+        pc.addTransceiver("audio", { direction: "sendrecv" });
+        pc.addTransceiver("video", { direction: "sendrecv" });
+
+        // Add local tracks to the transceivers if we have them
+        if (localStreamRef.current) {
+          const transceivers = pc.getTransceivers();
+          localStreamRef.current.getTracks().forEach((track) => {
+            const transceiver = transceivers.find(
+              (t) => t.receiver.track.kind === track.kind && !t.sender.track,
+            );
+            if (transceiver) {
+              transceiver.sender.replaceTrack(track);
+            }
+          });
+        }
       }
 
       // Handle incoming remote tracks
       pc.ontrack = (event) => {
         console.log(
-          `Received remote ${event.track.kind} track from ${peerId}`,
-          event.streams[0],
+          `🎥 [${userId}] Received ${event.track.kind} from peer ${peerId}`,
         );
+
         if (event.streams && event.streams[0]) {
+          const remoteStream = event.streams[0];
+          setRemoteStreams((prev) => {
+            if (prev.get(peerId) === remoteStream) return prev;
+            const newMap = new Map(prev);
+            newMap.set(peerId, remoteStream);
+            return newMap;
+          });
+        } else {
+          // Fallback for browsers that don't populate event.streams
           setRemoteStreams((prev) => {
             const newMap = new Map(prev);
-            newMap.set(peerId, event.streams[0]);
-            console.log(`Updated remote streams map, now has ${newMap.size} peers`);
-            return newMap;
+            const existingStream = newMap.get(peerId);
+            const tracks = existingStream ? existingStream.getTracks() : [];
+
+            if (!tracks.some((t) => t.id === event.track.id)) {
+              const newStream = new MediaStream([...tracks, event.track]);
+              newMap.set(peerId, newStream);
+              return newMap;
+            }
+            return prev;
           });
         }
       };
@@ -176,13 +262,27 @@ export function useWebRTC(
 
   const setupDataChannel = useCallback(
     (channel: RTCDataChannel, peerId: string) => {
+      console.log(
+        `Setting up data channel with peer ${peerId}, state: ${channel.readyState}`,
+      );
+
       channel.onopen = () => {
-        console.log("Data channel opened with", peerId);
+        console.log(`Data channel opened with peer ${peerId}`);
+      };
+
+      channel.onclose = () => {
+        console.log(`Data channel closed with peer ${peerId}`);
+        dataChannelsRef.current.delete(peerId);
+      };
+
+      channel.onerror = (error) => {
+        console.error(`Data channel error with peer ${peerId}:`, error);
       };
 
       channel.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          console.log(`Received message from peer ${peerId}:`, message.text);
           setMessages((prev) => [
             ...prev,
             {
@@ -196,87 +296,83 @@ export function useWebRTC(
       };
 
       dataChannelsRef.current.set(peerId, channel);
+      console.log(
+        `Data channel stored for peer ${peerId}, total channels: ${dataChannelsRef.current.size}`,
+      );
     },
     [],
   );
 
-  const createOffer = async (peerId: string) => {
-    console.log(`Creating offer for peer ${peerId}`);
-    const pc = createPeerConnection(peerId);
-    const channel = pc.createDataChannel("chat");
-    setupDataChannel(channel, peerId);
+  const createOffer = useCallback(
+    async (peerId: string) => {
+      const pc = createPeerConnection(peerId, true); // isOfferer = true
+      const channel = pc.createDataChannel("chat");
+      setupDataChannel(channel, peerId);
 
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+      // Log what tracks we're sending in the offer
+      const transceivers = pc.getTransceivers();
+      const tracksInfo = transceivers.map(
+        (t) =>
+          `${t.receiver.track.kind}:${t.sender.track ? "HAS_TRACK" : "NO_TRACK"}`,
+      );
+      console.log(
+        `🤝 [${userId}] Creating offer to ${peerId} with tracks: [${tracksInfo.join(", ")}]`,
+      );
 
-    console.log(`Sending offer to peer ${peerId}`);
-    await sendSignal({
-      type: "offer",
-      data: offer,
-      from: userId,
-      to: peerId,
-    });
-  };
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
 
-  const handleOffer = async (
-    offer: RTCSessionDescriptionInit,
-    from: string,
-  ) => {
-    console.log(`Received offer from peer ${from}`);
-    // Check if we already have a connection with this peer (renegotiation)
-    let pc = peersRef.current.get(from);
+      await sendSignal({
+        type: "offer",
+        data: offer,
+        from: userId,
+        to: peerId,
+      });
+    },
+    [createPeerConnection, setupDataChannel, sendSignal, userId],
+  );
 
-    if (!pc) {
-      // New connection
-      console.log(`Creating new peer connection for ${from}`);
-      pc = createPeerConnection(from);
+  const handleOffer = useCallback(
+    async (offer: RTCSessionDescriptionInit, from: string) => {
+      // Check if we already have a connection with this peer (renegotiation)
+      let pc = peersRef.current.get(from);
 
-      pc.ondatachannel = (event) => {
-        setupDataChannel(event.channel, from);
-      };
-    } else {
-      console.log(`Renegotiating existing connection with peer ${from}`);
-    }
+      if (!pc) {
+        // New connection - we're the answerer
+        pc = createPeerConnection(from, false); // isOfferer = false
 
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    console.log(`Set remote offer from peer ${from}`);
-
-    // Process queued ICE candidates
-    const pending = pendingIceCandidatesRef.current.get(from) || [];
-    for (const candidate of pending) {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        console.error("Failed to add queued ICE candidate:", error);
+        pc.ondatachannel = (event) => {
+          setupDataChannel(event.channel, from);
+        };
       }
-    }
-    pendingIceCandidatesRef.current.delete(from);
 
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
-    console.log(`Sending answer to peer ${from}`);
-    await sendSignal({
-      type: "answer",
-      data: answer,
-      from: userId,
-      to: from,
-    });
-  };
-
-  const handleAnswer = async (
-    answer: RTCSessionDescriptionInit,
-    from: string,
-  ) => {
-    const pc = peersRef.current.get(from);
-    if (!pc) {
-      console.error(`No peer connection found for ${from}`);
-      return;
-    }
-
-    if (pc.signalingState === "have-local-offer") {
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log(`Set remote answer from peer ${from}`);
+      // After setRemoteDescription, transceivers are created from the offer
+      // Add our local tracks to the transceivers
+      const transceivers = pc.getTransceivers();
+      if (
+        localStreamRef.current &&
+        localStreamRef.current.getTracks().length > 0
+      ) {
+        const addedTracks: string[] = [];
+        localStreamRef.current.getTracks().forEach((track) => {
+          const transceiver = transceivers.find(
+            (t) => t.receiver.track.kind === track.kind && !t.sender.track,
+          );
+          if (transceiver) {
+            transceiver.sender.replaceTrack(track);
+            addedTracks.push(track.kind);
+          }
+        });
+        console.log(
+          `✅ [${userId}] Answerer added tracks to ${from}: [${addedTracks.join(", ")}]`,
+        );
+      } else {
+        console.log(
+          `⏸️  [${userId}] Answerer has no local stream when processing offer from ${from}`,
+        );
+      }
 
       // Process queued ICE candidates
       const pending = pendingIceCandidatesRef.current.get(from) || [];
@@ -288,34 +384,64 @@ export function useWebRTC(
         }
       }
       pendingIceCandidatesRef.current.delete(from);
-    } else {
-      console.warn(
-        `Received answer from ${from} but signaling state is ${pc.signalingState}, expected "have-local-offer"`,
-      );
-    }
-  };
 
-  const handleIceCandidate = async (
-    candidate: RTCIceCandidateInit,
-    from: string,
-  ) => {
-    const pc = peersRef.current.get(from);
-    if (pc) {
-      if (pc.remoteDescription) {
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      await sendSignal({
+        type: "answer",
+        data: answer,
+        from: userId,
+        to: from,
+      });
+    },
+    [createPeerConnection, setupDataChannel, sendSignal, userId],
+  );
+
+  const handleAnswer = useCallback(
+    async (answer: RTCSessionDescriptionInit, from: string) => {
+      const pc = peersRef.current.get(from);
+      if (!pc || pc.signalingState !== "have-local-offer") {
+        return;
+      }
+
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+
+      // Process queued ICE candidates
+      const pending = pendingIceCandidatesRef.current.get(from) || [];
+      for (const candidate of pending) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (error) {
-          console.error("Failed to add ICE candidate:", error);
+          console.error("Failed to add queued ICE candidate:", error);
         }
-      } else {
-        // Queue until remote description is set
-        if (!pendingIceCandidatesRef.current.has(from)) {
-          pendingIceCandidatesRef.current.set(from, []);
-        }
-        pendingIceCandidatesRef.current.get(from)!.push(candidate);
       }
-    }
-  };
+      pendingIceCandidatesRef.current.delete(from);
+    },
+    [],
+  );
+
+  const handleIceCandidate = useCallback(
+    async (candidate: RTCIceCandidateInit, from: string) => {
+      const pc = peersRef.current.get(from);
+      if (pc) {
+        if (pc.remoteDescription) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (error) {
+            console.error("Failed to add ICE candidate:", error);
+          }
+        } else {
+          // Queue until remote description is set
+          if (!pendingIceCandidatesRef.current.has(from)) {
+            pendingIceCandidatesRef.current.set(from, []);
+          }
+          pendingIceCandidatesRef.current.get(from)!.push(candidate);
+        }
+      }
+    },
+    [],
+  );
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -326,33 +452,73 @@ export function useWebRTC(
         timestamp: new Date(),
       };
 
+      console.log(
+        `Sending message: "${text}", data channels: ${dataChannelsRef.current.size}`,
+      );
+
       // Add to local messages immediately for the sender
       setMessages((prev) => [...prev, message]);
 
       // Broadcast to all connected peers (they will add it via onmessage)
       const messageStr = JSON.stringify(message);
-      dataChannelsRef.current.forEach((channel) => {
+      let sentCount = 0;
+      dataChannelsRef.current.forEach((channel, peerId) => {
+        console.log(`Data channel to ${peerId}: state=${channel.readyState}`);
         if (channel.readyState === "open") {
           try {
             channel.send(messageStr);
+            sentCount++;
+            console.log(`Message sent to peer ${peerId}`);
           } catch (error) {
-            console.error("Failed to send message:", error);
+            console.error(`Failed to send message to peer ${peerId}:`, error);
           }
+        } else {
+          console.warn(
+            `Cannot send to peer ${peerId}: channel state is ${channel.readyState}`,
+          );
         }
       });
+
+      console.log(`Message sent to ${sentCount} peers`);
     },
     [userName],
   );
 
   const connectToPeers = useCallback(async () => {
-    try {
-      const peerIds = members
-        .map((m: Member) => m.userId || m.id)
-        .filter((id: string) => id !== userId && !peersRef.current.has(id));
+    if (isCleaningUpRef.current) return;
 
-      // Create offers to new peers
-      for (const peerId of peerIds) {
-        await createOffer(peerId);
+    try {
+      const allPeerIds = members.map((m: Member) => {
+        // Try multiple sources for peer ID, in order of preference
+        return m.user?.id || m.userId || m.id;
+      });
+
+      const peerIds = allPeerIds.filter(
+        (id: string) => id !== userId && !peersRef.current.has(id),
+      );
+
+      // Only create offers to peers with higher IDs (alphabetically)
+      // This prevents both peers from creating offers simultaneously
+      const peersToOffer = peerIds.filter((peerId: string) => userId < peerId);
+
+      // Create offers to new peers (only if our ID is smaller)
+      for (const peerId of peersToOffer) {
+        if (!isCleaningUpRef.current) {
+          console.log(
+            `🔵 [${userId}] I am OFFERER, creating offer to ${peerId}`,
+          );
+          await createOffer(peerId);
+        }
+      }
+
+      // Log if we're waiting for offers
+      const peersWaitingFor = peerIds.filter(
+        (peerId: string) => userId > peerId,
+      );
+      if (peersWaitingFor.length > 0) {
+        console.log(
+          `🟢 [${userId}] I am ANSWERER, waiting for offer from ${peersWaitingFor[0]}`,
+        );
       }
     } catch (error) {
       console.error("Failed to connect to peers:", error);
@@ -364,44 +530,116 @@ export function useWebRTC(
     connectToPeers();
   }, [connectToPeers]);
 
-  // Setup Pusher for real-time signaling
+  // Poll for signals from the server
+  const pollSignals = useCallback(async () => {
+    if (isCleaningUpRef.current) return;
+
+    try {
+      const response = await fetch(`/api/webrtc/signals/${roomId}/${userId}`);
+      if (response.ok && !isCleaningUpRef.current) {
+        const { signals } = await response.json();
+
+        for (const signal of signals) {
+          if (isCleaningUpRef.current) break;
+
+          if (signal.type === "offer") {
+            await handleOffer(signal.data, signal.from);
+          } else if (signal.type === "answer") {
+            await handleAnswer(signal.data, signal.from);
+          } else if (signal.type === "ice-candidate") {
+            await handleIceCandidate(signal.data, signal.from);
+          }
+        }
+      }
+    } catch (error) {
+      if (!isCleaningUpRef.current) {
+        console.error("Failed to poll signals:", error);
+      }
+    }
+  }, [roomId, userId, handleOffer, handleAnswer, handleIceCandidate]);
+
+  // Setup Pusher for real-time notifications and signal polling
   useEffect(() => {
+    if (!userId) {
+      console.log("Skipping Pusher setup: userId is empty");
+      return;
+    }
+
+    console.log(`Setting up Pusher for room=${roomId}, userId=${userId}`);
+    isCleaningUpRef.current = false;
+
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
     });
 
     // Subscribe to public room channel
     const channel = pusher.subscribe(`room-${roomId}`);
+    console.log(`Subscribed to Pusher channel: room-${roomId}`);
 
-    channel.bind("webrtc-signal", (signal: SignalData & { to: string }) => {
-      console.log("signal data", signal.data);
-      // Only process signals intended for this user
-      if (signal.to !== userId) return;
-
-      if (signal.type === "offer") {
-        handleOffer(signal.data, signal.from);
-      } else if (signal.type === "answer") {
-        handleAnswer(signal.data, signal.from);
-      } else if (signal.type === "ice-candidate") {
-        handleIceCandidate(signal.data, signal.from);
-      }
-    });
+    // Listen for signal notifications (Pusher just tells us to poll)
+    channel.bind(
+      "webrtc-signal-notification",
+      (notification: { to: string; from: string }) => {
+        console.log(
+          `[Pusher notification] to=${notification.to}, from=${notification.from}, myUserId=${userId}`,
+        );
+        // Only poll if this notification is for us and we're not cleaning up
+        if (notification.to === userId && !isCleaningUpRef.current) {
+          console.log(`[Pusher notification] Polling for signals...`);
+          pollSignals();
+        } else {
+          console.log(
+            `[Pusher notification] Ignoring (not for me or cleaning up)`,
+          );
+        }
+      },
+    );
 
     pusherRef.current = pusher;
     channelRef.current = channel;
 
+    // Poll immediately on mount
+    pollSignals();
+
     return () => {
-      channel.unbind_all();
-      channel.unsubscribe();
-      pusher.disconnect();
+      // Mark as cleaning up to prevent new operations
+      isCleaningUpRef.current = true;
 
       // Cleanup peer connections
-      peersRef.current.forEach((pc) => pc.close());
+      peersRef.current.forEach((pc) => {
+        try {
+          pc.close();
+        } catch (e) {
+          console.warn("Error closing peer connection:", e);
+        }
+      });
       peersRef.current.clear();
       dataChannelsRef.current.clear();
       pendingIceCandidatesRef.current.clear();
+
+      // Cleanup Pusher
+      try {
+        channel.unbind_all();
+        channel.unsubscribe();
+      } catch (e) {
+        console.warn("Error cleaning up Pusher channel:", e);
+      }
+
+      // Disconnect Pusher with a small delay to ensure cleanup completes
+      setTimeout(() => {
+        try {
+          if (pusher.connection.state !== "disconnected") {
+            pusher.disconnect();
+          }
+        } catch (e) {
+          console.warn("Error disconnecting Pusher:", e);
+        }
+      }, 100);
+
+      pusherRef.current = null;
+      channelRef.current = null;
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, pollSignals]);
 
   return {
     messages,

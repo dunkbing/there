@@ -6,29 +6,54 @@ import { Card } from "@/components/ui/card";
 import { Whiteboard } from "@/components/whiteboard";
 import { Video, Mic, MicOff, VideoOff, Pencil } from "lucide-react";
 import type { RoomMemberWithRelations } from "@/lib/schemas";
+import { useWebRTC } from "@/hooks/useWebRTC";
 
 interface MeetingWorkspaceProps {
   members: RoomMemberWithRelations[];
   currentUserId: string;
-  localStream: MediaStream | null;
-  onStreamChange: (stream: MediaStream | null) => void;
-  remoteStreams: Map<string, MediaStream>;
+  currentUserName: string;
+  roomId: string;
+  onChatUpdate?: (messages: any[], sendMessage: (text: string) => void) => void;
 }
 
 export function MeetingWorkspace({
   members,
   currentUserId,
-  localStream,
-  onStreamChange,
-  remoteStreams,
+  currentUserName,
+  roomId,
+  onChatUpdate,
 }: MeetingWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<"video" | "whiteboard">("video");
   const [isMicOn, setIsMicOn] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement | null>>(
     new Map(),
   );
+
+  // Initialize WebRTC for chat and video
+  const { messages, sendMessage, remoteStreams } = useWebRTC(
+    roomId,
+    currentUserId,
+    currentUserName,
+    members,
+    localStream,
+  );
+
+  // Expose chat data to parent component
+  useEffect(() => {
+    if (onChatUpdate) {
+      onChatUpdate(messages, sendMessage);
+    }
+  }, [messages, sendMessage, onChatUpdate]);
+
+  // Reduced logging - only log significant changes
+  useEffect(() => {
+    console.log(
+      `[MeetingWorkspace] Remote streams: ${remoteStreams.size}, Members: ${members.length}`,
+    );
+  }, [remoteStreams.size, members.length]);
 
   useEffect(() => {
     // Update video element when stream changes
@@ -37,15 +62,70 @@ export function MeetingWorkspace({
     }
   }, [localStream]);
 
-  // Attach remote streams to video elements
+  // Attach remote streams to video elements and listen for track changes
   useEffect(() => {
+    const trackListeners = new Map<MediaStreamTrack, () => void>();
+
     remoteStreams.forEach((stream, peerId) => {
       const videoElement = remoteVideoRefs.current.get(peerId);
-      if (videoElement && videoElement.srcObject !== stream) {
-        console.log("Attaching remote stream for peer", peerId);
-        videoElement.srcObject = stream;
+      if (videoElement) {
+        // Always update srcObject to ensure fresh stream reference
+        if (videoElement.srcObject !== stream) {
+          console.log(
+            "Attaching remote stream for peer",
+            peerId,
+            "with",
+            stream.getTracks().length,
+            "tracks",
+          );
+          videoElement.srcObject = stream;
+
+          // Force play in case it was paused
+          videoElement.play().catch((e) => {
+            console.log("Video play failed (may be muted):", e);
+          });
+        }
+
+        // Check if stream has active video tracks
+        const hasActiveVideo = stream
+          .getVideoTracks()
+          .some((t) => t.readyState === "live");
+        console.log(`Peer ${peerId} has active video:`, hasActiveVideo);
+      }
+
+      // Listen for track changes to force re-render
+      const onTrackChange = () => {
+        console.log(`Track state changed for peer ${peerId}`);
+      };
+
+      stream.getTracks().forEach((track) => {
+        track.addEventListener("ended", onTrackChange);
+        track.addEventListener("mute", onTrackChange);
+        track.addEventListener("unmute", onTrackChange);
+        trackListeners.set(track, onTrackChange);
+      });
+
+      // Listen for track add/remove on stream
+      stream.addEventListener("addtrack", onTrackChange);
+      stream.addEventListener("removetrack", onTrackChange);
+    });
+
+    // Remove streams for peers that are no longer in remoteStreams
+    remoteVideoRefs.current.forEach((videoElement, peerId) => {
+      if (videoElement && !remoteStreams.has(peerId)) {
+        console.log("Removing stream for peer", peerId);
+        videoElement.srcObject = null;
       }
     });
+
+    // Cleanup listeners
+    return () => {
+      trackListeners.forEach((listener, track) => {
+        track.removeEventListener("ended", listener);
+        track.removeEventListener("mute", listener);
+        track.removeEventListener("unmute", listener);
+      });
+    };
   }, [remoteStreams]);
 
   useEffect(() => {
@@ -55,8 +135,7 @@ export function MeetingWorkspace({
         localStream.getTracks().forEach((track) => track.stop());
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run cleanup on unmount, not when stream changes
+  }, [localStream]);
 
   const toggleMic = async () => {
     try {
@@ -68,7 +147,7 @@ export function MeetingWorkspace({
             track.stop();
             localStream.removeTrack(track);
           });
-          onStreamChange(new MediaStream(localStream.getTracks()));
+          setLocalStream(new MediaStream(localStream.getTracks()));
         }
         setIsMicOn(false);
       } else {
@@ -82,11 +161,11 @@ export function MeetingWorkspace({
         if (localStream) {
           // Add to existing stream
           localStream.addTrack(audioTrack);
-          onStreamChange(new MediaStream(localStream.getTracks()));
+          setLocalStream(new MediaStream(localStream.getTracks()));
         } else {
           // Create new stream
           const newStream = new MediaStream([audioTrack]);
-          onStreamChange(newStream);
+          setLocalStream(newStream);
         }
         setIsMicOn(true);
       }
@@ -100,32 +179,52 @@ export function MeetingWorkspace({
     try {
       if (isVideoOn) {
         // Turn off camera - stop and remove video tracks
+        console.log("[toggleVideo] Turning OFF camera");
         if (localStream) {
           const videoTracks = localStream.getVideoTracks();
+          console.log(
+            `[toggleVideo] Stopping ${videoTracks.length} video tracks`,
+          );
           videoTracks.forEach((track) => {
             track.stop();
             localStream.removeTrack(track);
           });
-          onStreamChange(new MediaStream(localStream.getTracks()));
+          const newStream = new MediaStream(localStream.getTracks());
+          console.log(
+            `[toggleVideo] New stream has ${newStream.getTracks().length} tracks`,
+          );
+          setLocalStream(newStream);
         }
         setIsVideoOn(false);
       } else {
         // Turn on camera
+        console.log("[toggleVideo] Turning ON camera");
         const videoStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: true,
         });
         const videoTrack = videoStream.getVideoTracks()[0];
+        console.log(
+          `[toggleVideo] Got video track: ${videoTrack.id}, state: ${videoTrack.readyState}`,
+        );
 
         if (localStream) {
           // Add to existing stream
           localStream.addTrack(videoTrack);
           // Trigger re-render by creating new stream reference
-          onStreamChange(new MediaStream(localStream.getTracks()));
+          const newStream = new MediaStream(localStream.getTracks());
+          console.log(
+            `[toggleVideo] Added video to existing stream, now has ${newStream.getTracks().length} tracks:`,
+            newStream.getTracks().map((t) => `${t.kind}:${t.id}`),
+          );
+          setLocalStream(newStream);
         } else {
           // Create new stream
           const newStream = new MediaStream([videoTrack]);
-          onStreamChange(newStream);
+          console.log(
+            `[toggleVideo] Created new stream with ${newStream.getTracks().length} tracks`,
+          );
+          setLocalStream(newStream);
         }
         setIsVideoOn(true);
       }
@@ -194,11 +293,31 @@ export function MeetingWorkspace({
                     "?"
                   ).toUpperCase();
 
-                  // Get peer ID for remote streams (use userId if available, otherwise member id)
-                  const peerId = member.user?.id || member.id;
-                  const hasRemoteStream =
-                    !isCurrentUser && remoteStreams.has(peerId);
-                  const hasVideo = isCurrentUser ? isVideoOn : hasRemoteStream;
+                  const peerId = member.user?.id || member.userId || member.id;
+
+                  // Check if remote peer has active video track
+                  const remoteStream = !isCurrentUser
+                    ? remoteStreams.get(peerId)
+                    : null;
+
+                  // Log only when stream lookup fails
+                  if (
+                    !isCurrentUser &&
+                    !remoteStream &&
+                    remoteStreams.size > 0
+                  ) {
+                    console.warn(
+                      `[MeetingWorkspace] Missing stream for peer ${peerId}, available: [${Array.from(remoteStreams.keys())}]`,
+                    );
+                  }
+
+                  const hasRemoteVideo = remoteStream
+                    ? remoteStream
+                        .getVideoTracks()
+                        .some((t) => t.readyState === "live")
+                    : false;
+
+                  const hasVideo = isCurrentUser ? isVideoOn : hasRemoteVideo;
 
                   return (
                     <div
@@ -210,7 +329,6 @@ export function MeetingWorkspace({
                         <video
                           ref={(el) => {
                             if (isCurrentUser) {
-                              // @ts-ignore
                               videoRef.current = el;
                             } else {
                               // Store remote video refs
