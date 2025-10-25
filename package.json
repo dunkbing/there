@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:api": "bun run src/api",
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
