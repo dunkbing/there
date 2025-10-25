@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { MeetingWorkspace } from "@/components/meeting-workspace";
@@ -40,6 +40,12 @@ export default function RoomPage() {
   >(() => () => {});
   const previousMembersRef = useRef<string[]>([]);
   const joiningRef = useRef(false);
+  const roomRef = useRef(room);
+
+  // Keep roomRef in sync with room
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
 
   // Set current user ID and name from session or localStorage
   useEffect(() => {
@@ -138,7 +144,7 @@ export default function RoomPage() {
     }
   }, [room]);
 
-  // Poll for room updates to keep members list fresh
+  // Poll for room updates as a fallback (WebSocket handles real-time updates)
   useEffect(() => {
     if (!room || !hasJoinedRoom) return;
 
@@ -149,35 +155,13 @@ export default function RoomPage() {
         });
         if (response.ok) {
           const data = await response.json();
-
-          // Check for members who left
-          if (previousMembersRef.current.length > 0) {
-            const currentMemberIds = data.members.map((m: any) => m.id);
-            const leftMembers = previousMembersRef.current.filter(
-              (prevId) => !currentMemberIds.includes(prevId),
-            );
-
-            // Show toast for each member who left
-            leftMembers.forEach((leftMemberId) => {
-              const leftMember = room.members?.find(
-                (m) => m.id === leftMemberId,
-              );
-              if (leftMember) {
-                const memberName = leftMember.guestName || "Guest";
-                toast.info(`${memberName} left the room`);
-              }
-            });
-          }
-
-          // Update previous members list
-          previousMembersRef.current = data.members.map((m: any) => m.id);
-
           setRoom(data);
+          previousMembersRef.current = data.members.map((m: any) => m.id);
         }
       } catch (error) {
         console.error("Failed to poll room data:", error);
       }
-    }, 10000);
+    }, 30000); // Reduced frequency since WebSocket handles real-time updates
 
     return () => clearInterval(pollInterval);
   }, [room, hasJoinedRoom, roomId]);
@@ -268,6 +252,43 @@ export default function RoomPage() {
     joinRoom(username);
   };
 
+  const handleChatUpdate = useCallback((messages: any[], sendMessage: (text: string) => void) => {
+    setChatMessages(messages);
+    setChatSendMessage(() => sendMessage);
+  }, []);
+
+  const handleUserLeft = useCallback((leftUserId: string) => {
+    // Find the member who left using the ref to avoid dependency
+    const leftMember = roomRef.current?.members?.find(
+      (m) =>
+        m.user?.id === leftUserId ||
+        m.userId === leftUserId ||
+        m.id === leftUserId,
+    );
+    if (leftMember) {
+      const memberName =
+        leftMember.user?.name ||
+        leftMember.guestName ||
+        "A user";
+      toast.info(`${memberName} left the room`);
+    }
+
+    // Refresh room data to update member list
+    roomClient.rooms[":id"]
+      .$get({
+        param: { id: roomId },
+      })
+      .then((response) => {
+        if (response.ok) {
+          response.json().then((data) => {
+            setRoom(data);
+            previousMembersRef.current =
+              data.members?.map((m: any) => m.id) || [];
+          });
+        }
+      });
+  }, [roomId]);
+
   // Handle disconnect when user leaves the room
   useEffect(() => {
     if (!hasJoinedRoom) return;
@@ -333,10 +354,8 @@ export default function RoomPage() {
               currentUserId={currentUserId}
               currentUserName={currentUserName}
               roomId={roomId}
-              onChatUpdate={(messages, sendMessage) => {
-                setChatMessages(messages);
-                setChatSendMessage(() => sendMessage);
-              }}
+              onChatUpdate={handleChatUpdate}
+              onUserLeft={handleUserLeft}
             />
           </div>
 

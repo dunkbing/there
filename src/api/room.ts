@@ -1,20 +1,8 @@
 import { Hono } from "hono";
-import { upgradeWebSocket } from "hono/bun";
-import Pusher from "pusher";
 import { db } from "@/lib/db";
 import { rooms, roomMembers, roomSettings } from "@/lib/schemas";
 import { getSessionFromContext } from "@/lib/session";
 import { eq, and } from "drizzle-orm";
-import { cacheClient } from "@/lib/cache";
-
-// Initialize Pusher
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  useTLS: true,
-});
 
 export const roomRoute = new Hono()
   // GET /api/rooms - Get user's rooms
@@ -262,88 +250,6 @@ export const roomRoute = new Hono()
     } catch (error) {
       console.error("Failed to leave room:", error);
       return c.json({ error: "Failed to leave room" }, 500);
-    }
-  })
-
-  // POST /api/webrtc/signal - Send WebRTC signal
-  .post("/webrtc/signal", async (c) => {
-    try {
-      const signal = await c.req.json();
-      const { roomId, to, type, data, from } = signal;
-
-      console.log(
-        `[API] Received signal: roomId=${roomId}, to=${to}, from=${from}, type=${type}`,
-      );
-
-      if (!roomId || !to) {
-        console.error(`[API] Validation failed: roomId=${roomId}, to=${to}`);
-        return c.json(
-          {
-            error: "Room ID and recipient are required",
-            received: { roomId, to, from, type },
-          },
-          400,
-        );
-      }
-
-      // Store signal in Redis queue for the recipient
-      const queueKey = `signal_queue:${roomId}:${to}`;
-      const signalData = JSON.stringify({
-        type,
-        data,
-        from,
-        to,
-        timestamp: Date.now(),
-      });
-
-      // Add signal to the end of the list
-      await cacheClient.rpush(queueKey, signalData);
-
-      // Keep queue size reasonable (last 50 signals)
-      // LTRIM keeps elements from -50 to -1 (last 50 elements)
-      await cacheClient.ltrim(queueKey, -50, -1);
-
-      // Set expiration on the queue (1 hour)
-      await cacheClient.expire(queueKey, 3600);
-
-      // Notify via Pusher that a signal is ready (small notification only)
-      const channel = `room-${roomId}`;
-      try {
-        await pusher.trigger(channel, "webrtc-signal-notification", {
-          to,
-          from,
-        });
-      } catch (pusherError) {
-        console.warn("Pusher notification failed (non-critical):", pusherError);
-      }
-
-      return c.json({ success: true });
-    } catch (error) {
-      console.error("Failed to send signal:", error);
-      return c.json({ error: "Failed to send signal" }, 500);
-    }
-  })
-
-  // GET /api/webrtc/signals/:roomId/:userId - Poll for pending signals
-  .get("/webrtc/signals/:roomId/:userId", async (c) => {
-    try {
-      const roomId = c.req.param("roomId");
-      const userId = c.req.param("userId");
-      const queueKey = `signal_queue:${roomId}:${userId}`;
-
-      // Get all signals from Redis list
-      const rawSignals = await cacheClient.lrange(queueKey, 0, -1);
-
-      // Parse JSON signals
-      const signals = rawSignals.map((signal: string) => JSON.parse(signal));
-
-      // Clear the queue after retrieving
-      await cacheClient.del(queueKey);
-
-      return c.json({ signals });
-    } catch (error) {
-      console.error("Failed to fetch signals:", error);
-      return c.json({ error: "Failed to fetch signals" }, 500);
     }
   });
 
