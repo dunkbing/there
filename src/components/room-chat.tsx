@@ -4,32 +4,23 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Send } from "lucide-react";
-import { useWebRTC } from "@/hooks/useWebRTC";
 
-interface Member {
+interface ChatMessage {
   id: string;
-  userId?: string | null;
+  sender: string;
+  text: string;
+  timestamp: Date;
 }
 
 interface RoomChatProps {
-  roomId: string;
-  userId: string;
-  userName: string;
-  members?: Member[];
+  messages: ChatMessage[];
+  onSendMessage: (text: string) => void;
 }
 
 export function RoomChat({
-  roomId,
-  userId,
-  userName,
-  members = [],
+  messages: chatMessages,
+  onSendMessage,
 }: RoomChatProps) {
-  const { messages: chatMessages, sendMessage: sendWebRTCMessage } = useWebRTC(
-    roomId,
-    userId,
-    userName,
-    members,
-  );
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +30,7 @@ export function RoomChat({
 
   const sendMessage = () => {
     if (chatInput.trim()) {
-      sendWebRTCMessage(chatInput);
+      onSendMessage(chatInput);
       setChatInput("");
     }
   };

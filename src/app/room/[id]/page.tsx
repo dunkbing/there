@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Volume2, Music, Palette, Timer, Info } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 import { useSession } from "@/lib/auth-client";
+import { useWebRTC } from "@/hooks/useWebRTC";
 
 export default function RoomPage() {
   const params = useParams();
@@ -31,8 +32,32 @@ export default function RoomPage() {
   const [roomInfoOpen, setRoomInfoOpen] = useState(false);
   const [showUsernameDialog, setShowUsernameDialog] = useState(false);
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentUserName, setCurrentUserName] = useState("Guest");
   const previousMembersRef = useRef<string[]>([]);
   const joiningRef = useRef(false);
+
+  // Set current user ID and name from session or localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCurrentUserId(
+        session?.user?.id || localStorage.getItem(`guestId_${roomId}`) || "",
+      );
+      setCurrentUserName(
+        session?.user?.name || localStorage.getItem("guestUsername") || "Guest",
+      );
+    }
+  }, [session, roomId]);
+
+  // Initialize WebRTC for chat and video
+  const { messages, sendMessage, remoteStreams } = useWebRTC(
+    roomId,
+    currentUserId,
+    currentUserName,
+    room?.members || [],
+    localStream,
+  );
 
   // Disable body scroll on mount, re-enable on unmount
   useEffect(() => {
@@ -363,12 +388,10 @@ export default function RoomPage() {
           <div className="lg:col-span-3 space-y-6">
             <MeetingWorkspace
               members={room.members || []}
-              currentUserId={
-                session?.user?.id ||
-                localStorage.getItem(`guestId_${roomId}`) ||
-                ""
-              }
-              roomId={roomId}
+              currentUserId={currentUserId}
+              localStream={localStream}
+              onStreamChange={setLocalStream}
+              remoteStreams={remoteStreams}
             />
           </div>
 
@@ -376,26 +399,9 @@ export default function RoomPage() {
           <div className="lg:col-span-1 space-y-6">
             <RoomMembers
               members={room.members || []}
-              currentUserId={
-                session?.user?.id ||
-                localStorage.getItem(`guestId_${roomId}`) ||
-                ""
-              }
+              currentUserId={currentUserId}
             />
-            <RoomChat
-              roomId={roomId}
-              userId={
-                session?.user?.id ||
-                localStorage.getItem(`guestId_${roomId}`) ||
-                ""
-              }
-              userName={
-                session?.user?.name ||
-                localStorage.getItem("guestUsername") ||
-                "Guest"
-              }
-              members={room.members || []}
-            />
+            <RoomChat messages={messages} onSendMessage={sendMessage} />
           </div>
         </div>
       </div>
