@@ -182,34 +182,37 @@ export const roomRoute = new Hono()
         const existingGuest = await db.query.roomMembers.findFirst({
           where: and(
             eq(roomMembers.roomId, roomId),
-            eq(roomMembers.id, guestId),
+            eq(roomMembers.guestId, guestId),
           ),
         });
 
         if (!existingGuest) {
-          // Check if this guest ID exists but update their name
+          // New guest with provided guest ID
           await db.insert(roomMembers).values({
-            id: guestId,
             roomId,
+            guestId,
             guestName: guestName || "Guest",
             role: "member",
           });
         }
-      } else {
-        // Anonymous user without guest ID (new guest)
-        const newMember = await db
-          .insert(roomMembers)
-          .values({
-            roomId,
-            guestName: guestName || "Guest",
-            role: "member",
-          })
-          .returning();
 
-        return c.json({ success: true, guestId: newMember[0].id });
+        return c.json({ success: true, guestId });
+      } else {
+        // Anonymous user without guest ID (new guest) - generate one
+        const { randomUUID } = await import("crypto");
+        const newGuestId = randomUUID();
+
+        await db.insert(roomMembers).values({
+          roomId,
+          guestId: newGuestId,
+          guestName: guestName || "Guest",
+          role: "member",
+        });
+
+        return c.json({ success: true, guestId: newGuestId });
       }
 
-      return c.json({ success: true, guestId: null });
+      return c.json({ success: true });
     } catch (error) {
       console.error("Failed to join room:", error);
       return c.json({ error: "Failed to join room" }, 500);
@@ -242,7 +245,7 @@ export const roomRoute = new Hono()
         await db
           .delete(roomMembers)
           .where(
-            and(eq(roomMembers.roomId, roomId), eq(roomMembers.id, guestId)),
+            and(eq(roomMembers.roomId, roomId), eq(roomMembers.guestId, guestId)),
           );
       }
 

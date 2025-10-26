@@ -29,6 +29,7 @@ export function MeetingWorkspace({
   const [isMicOn, setIsMicOn] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [trackStateCounter, setTrackStateCounter] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement | null>>(
     new Map(),
@@ -57,29 +58,136 @@ export function MeetingWorkspace({
     console.log(
       `[Component] Updating remote streams, count: ${remoteStreams.size}, update: ${streamUpdateCounter}`,
     );
+    console.log(`[Component] Remote stream peer IDs:`, Array.from(remoteStreams.keys()));
+
+    // Listen to track events to trigger re-renders when tracks change state
+    const trackEventHandlers = new Map<MediaStreamTrack, () => void>();
+
+    remoteStreams.forEach((stream, peerId) => {
+      // Add listeners to all tracks
+      stream.getTracks().forEach((track) => {
+        const handler = () => {
+          console.log(`[Component] Track state changed for ${peerId}:`, {
+            kind: track.kind,
+            readyState: track.readyState,
+            enabled: track.enabled,
+          });
+          // Force re-render by updating counter
+          setTrackStateCounter(c => c + 1);
+        };
+
+        track.addEventListener('ended', handler);
+        track.addEventListener('mute', handler);
+        track.addEventListener('unmute', handler);
+        trackEventHandlers.set(track, handler);
+      });
+    });
+
+    // Cleanup function to remove listeners
+    const cleanup = () => {
+      trackEventHandlers.forEach((handler, track) => {
+        track.removeEventListener('ended', handler);
+        track.removeEventListener('mute', handler);
+        track.removeEventListener('unmute', handler);
+      });
+      trackEventHandlers.clear();
+    };
 
     remoteStreams.forEach((stream, peerId) => {
       const videoElement = remoteVideoRefs.current.get(peerId);
       const tracks = stream.getTracks();
+      const videoTrack = stream.getVideoTracks()[0];
       console.log(`[Component] Remote stream for ${peerId}:`, {
         hasTracks: tracks.length > 0,
         tracks: tracks.map((t) => `${t.kind}(${t.readyState})`),
         hasVideoElement: !!videoElement,
         currentSrcObject: videoElement?.srcObject === stream ? 'same' : 'different',
+        videoElementReadyState: videoElement?.readyState,
+        videoElementPaused: videoElement?.paused,
+        videoTrackSettings: videoTrack?.getSettings(),
+        streamActive: stream.active,
+        streamId: stream.id,
       });
 
       if (videoElement) {
+        // Add error event listeners
+        videoElement.onerror = (e) => {
+          console.error(`[Component] Video element error for ${peerId}:`, e, {
+            error: videoElement.error,
+            networkState: videoElement.networkState,
+            readyState: videoElement.readyState,
+          });
+        };
+
+        videoElement.onstalled = () => {
+          console.warn(`[Component] Video stalled for ${peerId}`);
+        };
+
+        videoElement.onsuspend = () => {
+          console.warn(`[Component] Video suspended for ${peerId}`);
+        };
+
         // Always set srcObject to ensure it's up to date
         if (videoElement.srcObject !== stream) {
-          console.log(`[Component] Setting srcObject for ${peerId}`);
-          videoElement.srcObject = stream;
-        }
-
-        // Ensure video is playing
-        if (videoElement.paused) {
-          videoElement.play().catch((e) => {
-            console.error(`[Component] Failed to play video for ${peerId}:`, e);
+          console.log(`[Component] Setting srcObject for ${peerId}`, {
+            streamId: stream.id,
+            streamActive: stream.active,
+            tracks: stream.getTracks().map(t => ({
+              kind: t.kind,
+              id: t.id,
+              readyState: t.readyState,
+              enabled: t.enabled,
+              muted: t.muted,
+            }))
           });
+          videoElement.srcObject = stream;
+
+          // Wait for metadata to load, then play
+          const onLoadedMetadata = () => {
+            console.log(`[Component] Metadata loaded for ${peerId}, playing video`);
+            videoElement.play().then(() => {
+              console.log(`[Component] ✅ Video playing for ${peerId}`, {
+                readyState: videoElement.readyState,
+                paused: videoElement.paused,
+                videoWidth: videoElement.videoWidth,
+                videoHeight: videoElement.videoHeight,
+              });
+            }).catch((e) => {
+              console.error(`[Component] Failed to play video for ${peerId}:`, e);
+            });
+          };
+
+          videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+
+          // Also try to play immediately in case metadata is already loaded
+          if (videoElement.readyState >= 1) {
+            console.log(`[Component] Metadata already loaded for ${peerId}, playing immediately`);
+            videoElement.play().then(() => {
+              console.log(`[Component] ✅ Video playing for ${peerId} (immediate)`, {
+                readyState: videoElement.readyState,
+                paused: videoElement.paused,
+                videoWidth: videoElement.videoWidth,
+                videoHeight: videoElement.videoHeight,
+              });
+            }).catch((e) => {
+              console.error(`[Component] Failed to play video for ${peerId}:`, e);
+            });
+          }
+        } else {
+          // Even if srcObject is the same, ensure video is playing
+          if (videoElement.paused) {
+            console.log(`[Component] Video paused, attempting to play for ${peerId}`);
+            videoElement.play().then(() => {
+              console.log(`[Component] ✅ Resumed video for ${peerId}`, {
+                readyState: videoElement.readyState,
+                paused: videoElement.paused,
+                videoWidth: videoElement.videoWidth,
+                videoHeight: videoElement.videoHeight,
+              });
+            }).catch((e) => {
+              console.error(`[Component] Failed to play video for ${peerId}:`, e);
+            });
+          }
         }
       }
     });
@@ -91,7 +199,9 @@ export function MeetingWorkspace({
         videoElement.srcObject = null;
       }
     });
-  }, [remoteStreams, streamUpdateCounter]);
+
+    return cleanup;
+  }, [remoteStreams, streamUpdateCounter, trackStateCounter]);
 
   useEffect(() => {
     // Cleanup on unmount
@@ -234,10 +344,10 @@ export function MeetingWorkspace({
                 }`}
               >
                 {members.map((member) => {
-                  const isCurrentUser =
-                    member.user?.id === currentUserId ||
-                    member.userId === currentUserId ||
-                    member.id === currentUserId;
+                  // For peer identification: use user.id for authenticated users, guestId for guests
+                  const peerId = member.user?.id || member.guestId || member.userId || member.id;
+
+                  const isCurrentUser = peerId === currentUserId;
                   const memberName =
                     member.user?.name || member.guestName || "Guest";
                   const initials = (
@@ -245,8 +355,6 @@ export function MeetingWorkspace({
                     member.guestName?.[0] ||
                     "?"
                   ).toUpperCase();
-
-                  const peerId = member.user?.id || member.userId || member.id;
 
                   // Check if remote peer has active video track
                   const remoteStream = !isCurrentUser
@@ -256,7 +364,7 @@ export function MeetingWorkspace({
                   const hasRemoteVideo = remoteStream
                     ? remoteStream
                         .getVideoTracks()
-                        .some((t) => t.readyState === "live")
+                        .some((t) => t.readyState === "live" && t.enabled)
                     : false;
 
                   const hasVideo = isCurrentUser ? isVideoOn : hasRemoteVideo;

@@ -198,9 +198,11 @@ export default function RoomPage() {
       if (response.ok) {
         const result = await response.json();
 
-        // Store guest ID if this is a new guest
-        if (result.guestId && !guestId) {
+        // Store and update guest ID
+        if (result.guestId) {
           localStorage.setItem(`guestId_${roomId}`, result.guestId);
+          // Update current user ID with the guestId (new or existing)
+          setCurrentUserId(result.guestId);
         }
 
         setHasJoinedRoom(true);

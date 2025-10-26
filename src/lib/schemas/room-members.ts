@@ -9,6 +9,7 @@ export const roomMembers = pgTable("room_members", {
     .notNull()
     .references(() => rooms.id, { onDelete: "cascade" }),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  guestId: uuid("guest_id"), // Unique ID for guest users (used for WebRTC peer identification)
   guestName: text("guest_name"), // For anonymous users
   role: text("role").default("member"), // 'creator', 'member'
   joinedAt: timestamp("joined_at").defaultNow().$type<string>(),

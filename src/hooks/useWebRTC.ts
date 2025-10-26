@@ -86,8 +86,10 @@ export function useWebRTC(
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("[WS] Connected, sending join");
-      ws.send(JSON.stringify({ type: "join", clientId: userId }));
+      console.log("[WS] Connected successfully");
+      const joinMsg = { type: "join", clientId: userId };
+      console.log("[WS] Sending join:", joinMsg);
+      ws.send(JSON.stringify(joinMsg));
     };
 
     ws.onmessage = async (msg) => {
@@ -99,8 +101,9 @@ export function useWebRTC(
       // Get or create peer connection
       let pc = peersRef.current[peerId];
       if (!pc && type !== "disconnect") {
-        console.log(`[WebRTC] Creating peer connection for ${peerId}`);
+        console.log(`[WebRTC] Creating peer connection for ${peerId} with ICE servers:`, ICE_SERVERS);
         pc = new RTCPeerConnection(ICE_SERVERS);
+        console.log(`[WebRTC] Peer connection created, initial ICE gathering state: ${pc.iceGatheringState}, connection state: ${pc.connectionState}`);
 
         // Add local stream tracks (if available)
         if (localStreamRef.current) {
@@ -121,8 +124,99 @@ export function useWebRTC(
           console.log(`[WebRTC] 🎥 Received ${event.track.kind} track from ${peerId}`, {
             trackId: event.track.id,
             trackState: event.track.readyState,
+            trackEnabled: event.track.enabled,
+            trackMuted: event.track.muted,
             streamCount: event.streams?.length || 0,
+            transceiverDirection: event.transceiver?.direction,
+            transceiverCurrentDirection: event.transceiver?.currentDirection,
+            receiverTrackId: event.receiver?.track?.id,
           });
+
+          // Listen for unmute event to detect when track starts producing media
+          event.track.addEventListener('unmute', () => {
+            console.log(`[WebRTC] ✅ Track unmuted for ${peerId}:`, {
+              kind: event.track.kind,
+              trackId: event.track.id,
+              readyState: event.track.readyState,
+              enabled: event.track.enabled,
+            });
+            // Trigger stream update to re-render components
+            setStreamUpdateCounter(c => c + 1);
+          });
+
+          event.track.addEventListener('mute', async () => {
+            console.log(`[WebRTC] ⚠️ Track muted for ${peerId}:`, {
+              kind: event.track.kind,
+              trackId: event.track.id,
+            });
+
+            // Log stats when track mutes to see if any bytes were received
+            const stats = await pc.getStats(event.track);
+            stats.forEach((report) => {
+              if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                console.log(`[WebRTC] Stats at mute time for ${peerId}:`, {
+                  bytesReceived: report.bytesReceived,
+                  packetsReceived: report.packetsReceived,
+                  framesReceived: report.framesReceived,
+                });
+              }
+            });
+
+            setStreamUpdateCounter(c => c + 1);
+          });
+
+          // Log track stats continuously to monitor byte flow
+          const statsInterval = setInterval(async () => {
+            if (event.track.readyState === 'ended') {
+              clearInterval(statsInterval);
+              return;
+            }
+
+            // Get ALL stats from peer connection (not just track stats)
+            const stats = await pc.getStats();
+            let foundInboundRtp = false;
+            const allReportTypes: string[] = [];
+            const receivers: any[] = [];
+
+            stats.forEach((report) => {
+              allReportTypes.push(report.type);
+
+              // Log receiver information
+              if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                foundInboundRtp = true;
+                console.log(`[WebRTC] Video stats for ${peerId}:`, {
+                  bytesReceived: report.bytesReceived,
+                  framesReceived: report.framesReceived,
+                  framesDecoded: report.framesDecoded,
+                  framesDropped: report.framesDropped,
+                  trackMuted: event.track.muted,
+                  trackEnabled: event.track.enabled,
+                  trackReadyState: event.track.readyState,
+                });
+              }
+
+              // Collect receiver info
+              if (report.type === 'track' && report.kind === 'video') {
+                receivers.push({
+                  trackIdentifier: report.trackIdentifier,
+                  remoteSource: report.remoteSource,
+                  ended: report.ended,
+                  framesReceived: report.framesReceived,
+                });
+              }
+            });
+
+            if (!foundInboundRtp) {
+              console.warn(`[WebRTC] No inbound-rtp video stats found for ${peerId}`, {
+                totalReports: stats.size,
+                reportTypes: Array.from(new Set(allReportTypes)),
+                receivers: receivers,
+                trackMuted: event.track.muted,
+                trackReadyState: event.track.readyState,
+                trackId: event.track.id,
+              });
+            }
+          }, 2000);
 
           setRemoteStreams((prev) => {
             const newMap = new Map(prev);
@@ -172,6 +266,20 @@ export function useWebRTC(
         // Handle connection state
         pc.onconnectionstatechange = () => {
           console.log(`[WebRTC] Peer ${peerId} connection state: ${pc.connectionState}`);
+          if (pc.connectionState === 'failed') {
+            console.error(`[WebRTC] Connection to ${peerId} failed!`);
+          }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          console.log(`[WebRTC] Peer ${peerId} ICE connection state: ${pc.iceConnectionState}`);
+          if (pc.iceConnectionState === 'failed') {
+            console.error(`[WebRTC] ICE connection to ${peerId} failed!`);
+          }
+        };
+
+        pc.onicegatheringstatechange = () => {
+          console.log(`[WebRTC] Peer ${peerId} ICE gathering state: ${pc.iceGatheringState}`);
         };
 
         peersRef.current[peerId] = pc;
@@ -205,6 +313,7 @@ export function useWebRTC(
 
           pc.onicecandidate = (event) => {
             if (event.candidate) {
+              console.log(`[WebRTC] Sending ICE candidate to ${peerId}:`, event.candidate.candidate.substring(0, 50));
               ws.send(
                 JSON.stringify({
                   type: "offer",
@@ -212,14 +321,18 @@ export function useWebRTC(
                   clientId: peerId,
                 }),
               );
+            } else {
+              console.log(`[WebRTC] ICE gathering complete for ${peerId}`);
             }
           };
 
           const offerDescription = await pc.createOffer();
+          console.log(`[WebRTC] Created offer for ${peerId}, setting local description...`);
           await pc.setLocalDescription(offerDescription);
+          console.log(`[WebRTC] Local description set for ${peerId}, ICE gathering state: ${pc.iceGatheringState}`);
 
           const senderTracks = pc.getSenders().map(s => s.track?.kind || 'none');
-          console.log(`[WebRTC] Created offer for ${peerId} with tracks:`, senderTracks);
+          console.log(`[WebRTC] Offer for ${peerId} has tracks:`, senderTracks);
 
           ws.send(
             JSON.stringify({
@@ -285,6 +398,7 @@ export function useWebRTC(
 
           pc.onicecandidate = (event) => {
             if (event.candidate) {
+              console.log(`[WebRTC] Sending ICE candidate to ${peerId}:`, event.candidate.candidate.substring(0, 50));
               ws.send(
                 JSON.stringify({
                   type: "answer",
@@ -292,17 +406,67 @@ export function useWebRTC(
                   clientId: peerId,
                 }),
               );
+            } else {
+              console.log(`[WebRTC] ICE gathering complete for ${peerId}`);
             }
           };
 
           const offerDescription = new RTCSessionDescription(data.data);
+          console.log(`[WebRTC] Setting remote description for ${peerId}...`);
           await pc.setRemoteDescription(offerDescription);
+          console.log(`[WebRTC] Remote description set for ${peerId}`);
+
+          // Log transceivers to check their configuration
+          const transceivers = pc.getTransceivers();
+          console.log(`[WebRTC] Transceivers for ${peerId}:`, transceivers.map(t => ({
+            mid: t.mid,
+            direction: t.direction,
+            currentDirection: t.currentDirection,
+            receiver: {
+              trackId: t.receiver?.track?.id,
+              trackKind: t.receiver?.track?.kind,
+              trackMuted: t.receiver?.track?.muted,
+            },
+            sender: {
+              trackId: t.sender?.track?.id,
+              trackKind: t.sender?.track?.kind,
+            }
+          })));
+
+          // Ensure transceivers are properly configured before creating answer
+          // This is critical for renegotiation when new tracks are added
+          transceivers.forEach(transceiver => {
+            // If we have a receiver but no sender, ensure direction allows receiving
+            if (transceiver.receiver && transceiver.receiver.track) {
+              if (!transceiver.sender?.track) {
+                // We're only receiving, not sending - set to recvonly
+                if (transceiver.direction !== 'recvonly' && transceiver.direction !== 'sendrecv') {
+                  console.log(`[WebRTC] Setting transceiver direction to recvonly for ${peerId} (was ${transceiver.direction})`);
+                  transceiver.direction = 'recvonly';
+                }
+              }
+            }
+          });
 
           const answerDescription = await pc.createAnswer();
+          console.log(`[WebRTC] Created answer for ${peerId}, setting local description...`);
           await pc.setLocalDescription(answerDescription);
+          console.log(`[WebRTC] Local description set for ${peerId}, ICE gathering state: ${pc.iceGatheringState}`);
+
+          // Log transceivers AFTER setLocalDescription to see negotiated directions
+          const transceiversAfter = pc.getTransceivers();
+          console.log(`[WebRTC] Transceivers AFTER setLocalDescription for ${peerId}:`, transceiversAfter.map(t => ({
+            mid: t.mid,
+            direction: t.direction,
+            currentDirection: t.currentDirection,
+            receiver: {
+              trackId: t.receiver?.track?.id,
+              trackMuted: t.receiver?.track?.muted,
+            }
+          })));
 
           const senderTracks = pc.getSenders().map(s => s.track?.kind || 'none');
-          console.log(`[WebRTC] Created answer for ${peerId} with tracks:`, senderTracks);
+          console.log(`[WebRTC] Answer for ${peerId} has tracks:`, senderTracks);
 
           ws.send(
             JSON.stringify({
@@ -318,11 +482,13 @@ export function useWebRTC(
         }
 
         case "call-answer": {
-          // Received answer
+          // Received answer (from initial connection or renegotiation)
           console.log(`[WebRTC] Received answer from ${peerId}`);
-          if (!pc.currentRemoteDescription && data.data) {
+          if (data.data) {
             const answerDescription = new RTCSessionDescription(data.data);
+            console.log(`[WebRTC] Setting remote description (answer) for ${peerId}`);
             await pc.setRemoteDescription(answerDescription);
+            console.log(`[WebRTC] Remote description (answer) set for ${peerId}, signaling state: ${pc.signalingState}`);
           }
           break;
         }
@@ -330,6 +496,7 @@ export function useWebRTC(
         case "offer": {
           // ICE candidate from offerer
           if (data.data) {
+            console.log(`[WebRTC] Received ICE candidate from ${peerId}:`, data.data.candidate?.substring(0, 50));
             const candidate = new RTCIceCandidate(data.data);
             await pc.addIceCandidate(candidate);
           }
@@ -339,6 +506,7 @@ export function useWebRTC(
         case "answer": {
           // ICE candidate from answerer
           if (data.data) {
+            console.log(`[WebRTC] Received ICE candidate from ${peerId}:`, data.data.candidate?.substring(0, 50));
             const candidate = new RTCIceCandidate(data.data);
             await pc.addIceCandidate(candidate);
           }
@@ -404,14 +572,39 @@ export function useWebRTC(
         if (sender) {
           // Sender exists - replace track (no renegotiation needed)
           if (sender.track !== newTrack) {
-            console.log(`[WebRTC] Replacing ${kind} track for peer ${peerId}`);
-            sender.replaceTrack(newTrack || null).catch((e) => {
+            console.log(`[WebRTC] Replacing ${kind} track for peer ${peerId}`, {
+              oldTrack: sender.track?.id,
+              newTrack: newTrack?.id,
+              trackState: newTrack?.readyState,
+              trackEnabled: newTrack?.enabled,
+            });
+            sender.replaceTrack(newTrack || null).then(() => {
+              console.log(`[WebRTC] Successfully replaced ${kind} track for peer ${peerId}`);
+
+              // Log sender stats after a delay
+              setTimeout(async () => {
+                const stats = await pc.getStats(sender);
+                stats.forEach((report) => {
+                  if (report.type === 'outbound-rtp' && report.kind === kind) {
+                    console.log(`[WebRTC] Sender stats for ${kind} to ${peerId}:`, {
+                      bytesSent: report.bytesSent,
+                      packetsSent: report.packetsSent,
+                      framesSent: report.framesSent,
+                    });
+                  }
+                });
+              }, 3000);
+            }).catch((e) => {
               console.error(`Failed to replace ${kind} track for peer ${peerId}:`, e);
             });
           }
         } else if (newTrack && localStream) {
           // No sender for this kind - add track (requires renegotiation)
-          console.log(`[WebRTC] Adding new ${kind} track to peer ${peerId}`);
+          console.log(`[WebRTC] Adding new ${kind} track to peer ${peerId}`, {
+            trackId: newTrack.id,
+            trackState: newTrack.readyState,
+            trackEnabled: newTrack.enabled,
+          });
           pc.addTrack(newTrack, localStream);
           needsRenegotiation = true;
         }
@@ -426,9 +619,32 @@ export function useWebRTC(
 
           const senderTracks = pc.getSenders().map(s => ({
             kind: s.track?.kind || 'none',
-            id: s.track?.id.substring(0, 8) || 'none'
+            id: s.track?.id.substring(0, 8) || 'none',
+            trackState: s.track?.readyState,
+            trackEnabled: s.track?.enabled,
+            trackMuted: s.track?.muted,
           }));
           console.log(`[WebRTC] Renegotiation offer to ${peerId} includes tracks:`, senderTracks);
+
+          // Log sender stats after renegotiation
+          setTimeout(async () => {
+            for (const sender of pc.getSenders()) {
+              if (sender.track) {
+                const stats = await pc.getStats(sender.track);
+                stats.forEach((report) => {
+                  if (report.type === 'outbound-rtp') {
+                    console.log(`[WebRTC] Post-renegotiation sender stats for ${sender.track?.kind} to ${peerId}:`, {
+                      bytesSent: report.bytesSent,
+                      packetsSent: report.packetsSent,
+                      framesSent: report.framesSent,
+                      trackState: sender.track?.readyState,
+                      trackMuted: sender.track?.muted,
+                    });
+                  }
+                });
+              }
+            }
+          }, 3000);
 
           wsRef.current?.send(
             JSON.stringify({
