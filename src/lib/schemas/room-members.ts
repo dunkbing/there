@@ -27,5 +27,5 @@ export const roomMembersRelations = relations(roomMembers, ({ one }) => ({
 
 export type SelectRoomMember = typeof roomMembers.$inferSelect;
 export type RoomMemberWithRelations = SelectRoomMember & {
-  user?: SelectUser;
+  user?: SelectUser | null;
 };

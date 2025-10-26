@@ -1,7 +1,7 @@
 import { pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
-import { roomMembers, SelectRoomMember } from "./room-members";
+import { roomMembers, RoomMemberWithRelations } from "./room-members";
 import { roomSettings } from "./room-settings";
 
 export const rooms = pgTable("rooms", {
@@ -25,5 +25,5 @@ export const roomsRelations = relations(rooms, ({ one, many }) => ({
 
 export type SelectRoom = typeof rooms.$inferSelect;
 export type RoomWithRelations = SelectRoom & {
-  members?: SelectRoomMember[];
+  members?: RoomMemberWithRelations[];
 };

@@ -28,7 +28,6 @@ export function useWebRTC(
   roomId: string,
   userId: string,
   userName: string,
-  members: Member[] = [],
   localStream: MediaStream | null = null,
   onUserLeft?: (userId: string) => void,
 ) {

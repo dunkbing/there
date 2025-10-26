@@ -35,14 +35,8 @@ export function MeetingWorkspace({
   );
 
   // Initialize WebRTC for chat and video
-  const { messages, sendMessage, remoteStreams, streamUpdateCounter } = useWebRTC(
-    roomId,
-    currentUserId,
-    currentUserName,
-    members,
-    localStream,
-    onUserLeft,
-  );
+  const { messages, sendMessage, remoteStreams, streamUpdateCounter } =
+    useWebRTC(roomId, currentUserId, currentUserName, localStream, onUserLeft);
 
   // Expose chat data to parent component
   useEffect(() => {
@@ -50,7 +44,6 @@ export function MeetingWorkspace({
       onChatUpdate(messages, sendMessage);
     }
   }, [messages, sendMessage, onChatUpdate]);
-
 
   useEffect(() => {
     // Update video element when stream changes
@@ -61,14 +54,16 @@ export function MeetingWorkspace({
 
   // Attach remote streams to video elements
   useEffect(() => {
-    console.log(`[Component] Updating remote streams, count: ${remoteStreams.size}, update: ${streamUpdateCounter}`);
+    console.log(
+      `[Component] Updating remote streams, count: ${remoteStreams.size}, update: ${streamUpdateCounter}`,
+    );
 
     remoteStreams.forEach((stream, peerId) => {
       const videoElement = remoteVideoRefs.current.get(peerId);
       const tracks = stream.getTracks();
       console.log(`[Component] Remote stream for ${peerId}:`, {
         hasTracks: tracks.length > 0,
-        tracks: tracks.map(t => `${t.kind}(${t.readyState})`),
+        tracks: tracks.map((t) => `${t.kind}(${t.readyState})`),
         hasVideoElement: !!videoElement,
         currentSrcObject: videoElement?.srcObject === stream ? 'same' : 'different',
       });
@@ -117,7 +112,9 @@ export function MeetingWorkspace({
             track.stop();
             localStream.removeTrack(track);
           });
-          setLocalStream(new MediaStream(localStream.getTracks()));
+          // If no tracks remain, set to null; otherwise create new stream
+          const remainingTracks = localStream.getTracks();
+          setLocalStream(remainingTracks.length > 0 ? new MediaStream(remainingTracks) : null);
         }
         setIsMicOn(false);
       } else {
@@ -128,16 +125,18 @@ export function MeetingWorkspace({
         });
         const audioTrack = audioStream.getAudioTracks()[0];
 
-        if (localStream) {
-          // Add to existing stream
-          localStream.addTrack(audioTrack);
-          setLocalStream(new MediaStream(localStream.getTracks()));
-        } else {
-          // Create new stream
-          const newStream = new MediaStream([audioTrack]);
-          setLocalStream(newStream);
+        if (audioTrack) {
+          if (localStream) {
+            // Add to existing stream
+            const newStream = new MediaStream([...localStream.getTracks(), audioTrack]);
+            setLocalStream(newStream);
+          } else {
+            // Create new stream
+            const newStream = new MediaStream([audioTrack]);
+            setLocalStream(newStream);
+          }
+          setIsMicOn(true);
         }
-        setIsMicOn(true);
       }
     } catch (error) {
       console.error("Error accessing microphone:", error);
@@ -155,8 +154,9 @@ export function MeetingWorkspace({
             track.stop();
             localStream.removeTrack(track);
           });
-          const newStream = new MediaStream(localStream.getTracks());
-          setLocalStream(newStream);
+          // If no tracks remain, set to null; otherwise create new stream
+          const remainingTracks = localStream.getTracks();
+          setLocalStream(remainingTracks.length > 0 ? new MediaStream(remainingTracks) : null);
         }
         setIsVideoOn(false);
       } else {
@@ -167,17 +167,18 @@ export function MeetingWorkspace({
         });
         const videoTrack = videoStream.getVideoTracks()[0];
 
-        if (localStream) {
-          // Add to existing stream
-          localStream.addTrack(videoTrack);
-          const newStream = new MediaStream(localStream.getTracks());
-          setLocalStream(newStream);
-        } else {
-          // Create new stream
-          const newStream = new MediaStream([videoTrack]);
-          setLocalStream(newStream);
+        if (videoTrack) {
+          if (localStream) {
+            // Add to existing stream
+            const newStream = new MediaStream([...localStream.getTracks(), videoTrack]);
+            setLocalStream(newStream);
+          } else {
+            // Create new stream
+            const newStream = new MediaStream([videoTrack]);
+            setLocalStream(newStream);
+          }
+          setIsVideoOn(true);
         }
-        setIsVideoOn(true);
       }
     } catch (error) {
       console.error("Error accessing camera:", error);

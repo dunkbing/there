@@ -7,7 +7,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").unique(),
   name: text("name"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().$type<string>(),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
