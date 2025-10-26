@@ -127,8 +127,17 @@ export function MeetingWorkspace({
           console.warn(`[Component] Video suspended for ${peerId}`);
         };
 
-        // Always set srcObject to ensure it's up to date
-        if (videoElement.srcObject !== stream) {
+        // Check if stream is inactive (all tracks ended)
+        const hasLiveTracks = stream.getVideoTracks().some(t => t.readyState === 'live');
+
+        if (!stream.active || !hasLiveTracks) {
+          // Stream has no active tracks - clear the video element
+          if (videoElement.srcObject) {
+            console.log(`[Component] Clearing srcObject for ${peerId} (stream inactive)`);
+            videoElement.srcObject = null;
+          }
+        } else if (videoElement.srcObject !== stream) {
+          // Always set srcObject to ensure it's up to date
           console.log(`[Component] Setting srcObject for ${peerId}`, {
             streamId: stream.id,
             streamActive: stream.active,
@@ -362,9 +371,14 @@ export function MeetingWorkspace({
                     : null;
 
                   const hasRemoteVideo = remoteStream
-                    ? remoteStream
-                        .getVideoTracks()
-                        .some((t) => t.readyState === "live" && t.enabled)
+                    ? (() => {
+                        const videoTracks = remoteStream.getVideoTracks();
+                        // Check if stream has any video tracks that are live and enabled
+                        const hasLiveTrack = videoTracks.some((t) => t.readyState === "live" && t.enabled);
+                        // Also check if stream is active (has at least one track that's not ended)
+                        const isStreamActive = remoteStream.active;
+                        return hasLiveTrack && isStreamActive && videoTracks.length > 0;
+                      })()
                     : false;
 
                   const hasVideo = isCurrentUser ? isVideoOn : hasRemoteVideo;

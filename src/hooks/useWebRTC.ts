@@ -165,7 +165,35 @@ export function useWebRTC(
             setStreamUpdateCounter(c => c + 1);
           });
 
+          // Listen for track ending to remove stream
+          event.track.addEventListener('ended', () => {
+            console.log(`[WebRTC] ❌ Track ended for ${peerId}:`, {
+              kind: event.track.kind,
+              trackId: event.track.id,
+            });
+
+            // Remove the stream if all tracks have ended
+            setRemoteStreams((prev) => {
+              const newMap = new Map(prev);
+              const stream = newMap.get(peerId);
+
+              if (stream) {
+                const activeTracks = stream.getTracks().filter(t => t.readyState === 'live');
+                if (activeTracks.length === 0) {
+                  console.log(`[WebRTC] Removing stream for ${peerId} (all tracks ended)`);
+                  newMap.delete(peerId);
+                  setStreamUpdateCounter(c => c + 1);
+                }
+              }
+
+              return newMap;
+            });
+          });
+
           // Log track stats continuously to monitor byte flow
+          let lastFramesReceived = 0;
+          let noDataCounter = 0;
+
           const statsInterval = setInterval(async () => {
             if (event.track.readyState === 'ended') {
               clearInterval(statsInterval);
@@ -177,6 +205,7 @@ export function useWebRTC(
             let foundInboundRtp = false;
             const allReportTypes: string[] = [];
             const receivers: any[] = [];
+            let currentFramesReceived = 0;
 
             stats.forEach((report) => {
               allReportTypes.push(report.type);
@@ -184,6 +213,8 @@ export function useWebRTC(
               // Log receiver information
               if (report.type === 'inbound-rtp' && report.kind === 'video') {
                 foundInboundRtp = true;
+                currentFramesReceived = report.framesReceived || 0;
+
                 console.log(`[WebRTC] Video stats for ${peerId}:`, {
                   bytesReceived: report.bytesReceived,
                   framesReceived: report.framesReceived,
@@ -193,6 +224,30 @@ export function useWebRTC(
                   trackEnabled: event.track.enabled,
                   trackReadyState: event.track.readyState,
                 });
+
+                // Check if frames have stopped being received
+                if (currentFramesReceived === lastFramesReceived && currentFramesReceived > 0) {
+                  noDataCounter++;
+                  console.warn(`[WebRTC] No new frames for ${peerId} (${noDataCounter * 2}s)`);
+
+                  // If no new frames for 4 seconds, consider stream dead (fallback if data channel signal fails)
+                  if (noDataCounter >= 2) {
+                    console.log(`[WebRTC] Stream appears dead for ${peerId}, removing...`);
+                    clearInterval(statsInterval);
+
+                    // Remove the stream
+                    setRemoteStreams((prev) => {
+                      const newMap = new Map(prev);
+                      newMap.delete(peerId);
+                      return newMap;
+                    });
+                    setStreamUpdateCounter(c => c + 1);
+                  }
+                } else {
+                  noDataCounter = 0;
+                }
+
+                lastFramesReceived = currentFramesReceived;
               }
 
               // Collect receiver info
@@ -297,17 +352,34 @@ export function useWebRTC(
             dataChannelsRef.current.set(peerId, dataChannel);
           };
           dataChannel.onmessage = (event) => {
+            console.log(`[WebRTC] Received data channel message from ${peerId}:`, event.data.substring(0, 100));
             try {
               const message = JSON.parse(event.data);
-              setMessages((prev) => [
-                ...prev,
-                {
-                  ...message,
-                  timestamp: new Date(message.timestamp),
-                },
-              ]);
+
+              // Handle control messages
+              if (message.type === 'track-removed') {
+                console.log(`[WebRTC] 🔴 Received track-removed signal from ${peerId} for ${message.kind}`);
+
+                // Remove the stream immediately
+                setRemoteStreams((prev) => {
+                  const newMap = new Map(prev);
+                  const removed = newMap.delete(peerId);
+                  console.log(`[WebRTC] Stream removal result:`, { removed, remainingPeers: Array.from(newMap.keys()) });
+                  return newMap;
+                });
+                setStreamUpdateCounter(c => c + 1);
+              } else {
+                // Handle chat messages
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    ...message,
+                    timestamp: new Date(message.timestamp),
+                  },
+                ]);
+              }
             } catch (error) {
-              console.error("Failed to parse chat message:", error);
+              console.error("Failed to parse data channel message:", error, event.data);
             }
           };
 
@@ -381,17 +453,34 @@ export function useWebRTC(
               dataChannelsRef.current.set(peerId, dataChannel);
             };
             dataChannel.onmessage = (event) => {
+              console.log(`[WebRTC] Received data channel message from ${peerId}:`, event.data.substring(0, 100));
               try {
                 const message = JSON.parse(event.data);
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    ...message,
-                    timestamp: new Date(message.timestamp),
-                  },
-                ]);
+
+                // Handle control messages
+                if (message.type === 'track-removed') {
+                  console.log(`[WebRTC] 🔴 Received track-removed signal from ${peerId} for ${message.kind}`);
+
+                  // Remove the stream immediately
+                  setRemoteStreams((prev) => {
+                    const newMap = new Map(prev);
+                    const removed = newMap.delete(peerId);
+                    console.log(`[WebRTC] Stream removal result:`, { removed, remainingPeers: Array.from(newMap.keys()) });
+                    return newMap;
+                  });
+                  setStreamUpdateCounter(c => c + 1);
+                } else {
+                  // Handle chat messages
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      ...message,
+                      timestamp: new Date(message.timestamp),
+                    },
+                  ]);
+                }
               } catch (error) {
-                console.error("Failed to parse chat message:", error);
+                console.error("Failed to parse data channel message:", error, event.data);
               }
             };
           };
@@ -581,19 +670,43 @@ export function useWebRTC(
             sender.replaceTrack(newTrack || null).then(() => {
               console.log(`[WebRTC] Successfully replaced ${kind} track for peer ${peerId}`);
 
-              // Log sender stats after a delay
-              setTimeout(async () => {
-                const stats = await pc.getStats(sender);
-                stats.forEach((report) => {
-                  if (report.type === 'outbound-rtp' && report.kind === kind) {
-                    console.log(`[WebRTC] Sender stats for ${kind} to ${peerId}:`, {
-                      bytesSent: report.bytesSent,
-                      packetsSent: report.packetsSent,
-                      framesSent: report.framesSent,
-                    });
-                  }
+              // If track was removed (null), notify peer immediately via data channel
+              if (!newTrack) {
+                const dataChannel = dataChannelsRef.current.get(peerId);
+                console.log(`[WebRTC] Track removed, checking data channel for ${peerId}:`, {
+                  hasDataChannel: !!dataChannel,
+                  readyState: dataChannel?.readyState,
                 });
-              }, 3000);
+
+                if (dataChannel && dataChannel.readyState === 'open') {
+                  console.log(`[WebRTC] Sending track-removed signal to ${peerId} for ${kind}`);
+                  try {
+                    dataChannel.send(JSON.stringify({
+                      type: 'track-removed',
+                      kind: kind,
+                    }));
+                    console.log(`[WebRTC] ✅ Sent track-removed signal successfully`);
+                  } catch (e) {
+                    console.error(`[WebRTC] Failed to send track-removed signal:`, e);
+                  }
+                } else {
+                  console.warn(`[WebRTC] Cannot send track-removed signal - data channel not ready`);
+                }
+              } else {
+                // Log sender stats after a delay (only if track exists)
+                setTimeout(async () => {
+                  const stats = await pc.getStats(sender.track);
+                  stats.forEach((report) => {
+                    if (report.type === 'outbound-rtp' && report.kind === kind) {
+                      console.log(`[WebRTC] Sender stats for ${kind} to ${peerId}:`, {
+                        bytesSent: report.bytesSent,
+                        packetsSent: report.packetsSent,
+                        framesSent: report.framesSent,
+                      });
+                    }
+                  });
+                }, 3000);
+              }
             }).catch((e) => {
               console.error(`Failed to replace ${kind} track for peer ${peerId}:`, e);
             });
