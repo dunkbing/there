@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Whiteboard } from "@/components/whiteboard";
 import type { RoomMemberWithRelations } from "@/lib/schemas";
@@ -75,22 +75,6 @@ export function MeetingWorkspace({
       onChatUpdate(messages, sendMessage);
     }
   }, [messages, sendMessage, onChatUpdate]);
-
-  // Expose controls to parent component
-  useEffect(() => {
-    if (onControlsReady) {
-      onControlsReady({
-        isMicOn,
-        isVideoOn,
-        isScreenSharing,
-        mainContent,
-        toggleMic,
-        toggleVideo,
-        toggleScreenShare,
-        toggleWhiteboard,
-      });
-    }
-  }, [isMicOn, isVideoOn, isScreenSharing, mainContent, onControlsReady]);
 
   // Update local video element
   useEffect(() => {
@@ -183,7 +167,7 @@ export function MeetingWorkspace({
     };
   }, [localStream, screenStream]);
 
-  const toggleMic = async () => {
+  const toggleMic = useCallback(async () => {
     try {
       if (isMicOn) {
         // Turn off microphone
@@ -226,9 +210,9 @@ export function MeetingWorkspace({
       console.error("Error accessing microphone:", error);
       alert("Unable to access microphone. Please check permissions.");
     }
-  };
+  }, [isMicOn, localStream]);
 
-  const toggleVideo = async () => {
+  const toggleVideo = useCallback(async () => {
     try {
       if (isVideoOn) {
         // Turn off camera
@@ -271,9 +255,9 @@ export function MeetingWorkspace({
       console.error("Error accessing camera:", error);
       alert("Unable to access camera. Please check permissions.");
     }
-  };
+  }, [isVideoOn, localStream]);
 
-  const toggleScreenShare = async () => {
+  const toggleScreenShare = useCallback(async () => {
     try {
       if (isScreenSharing) {
         // Stop screen sharing
@@ -290,10 +274,12 @@ export function MeetingWorkspace({
         });
 
         // Listen for the browser's "Stop sharing" button
-        displayStream.getVideoTracks()[0].addEventListener("ended", () => {
+        const screenTrack = displayStream.getVideoTracks()[0];
+        const handleEnded = () => {
           setScreenStream(null);
           setIsScreenSharing(false);
-        });
+        };
+        screenTrack.addEventListener("ended", handleEnded);
 
         setScreenStream(displayStream);
         setIsScreenSharing(true);
@@ -304,27 +290,61 @@ export function MeetingWorkspace({
         alert("Unable to share screen. Please check permissions.");
       }
     }
-  };
+  }, [isScreenSharing, screenStream]);
 
-  const toggleWhiteboard = () => {
+  const toggleWhiteboard = useCallback(() => {
     if (mainContent === "whiteboard") {
       setMainContent("default");
     } else {
       setMainContent("whiteboard");
     }
-  };
+  }, [mainContent]);
+
+  // Expose controls to parent component
+  useEffect(() => {
+    if (onControlsReady) {
+      onControlsReady({
+        isMicOn,
+        isVideoOn,
+        isScreenSharing,
+        mainContent,
+        toggleMic,
+        toggleVideo,
+        toggleScreenShare,
+        toggleWhiteboard,
+      });
+    }
+  }, [
+    isMicOn,
+    isVideoOn,
+    isScreenSharing,
+    mainContent,
+    toggleMic,
+    toggleVideo,
+    toggleScreenShare,
+    toggleWhiteboard,
+    onControlsReady,
+  ]);
 
   // Get the peer who is sharing screen (for main content display)
-  const screenSharingPeerId =
-    remoteScreenStreams.size > 0
-      ? Array.from(remoteScreenStreams.keys())[0]
-      : null;
-  const screenSharingMember = screenSharingPeerId
-    ? members.find((m) => {
-        const peerId = m.user?.id || m.guestId || m.userId || m.id;
-        return peerId === screenSharingPeerId;
-      })
-    : null;
+  const screenSharingPeerId = useMemo(
+    () =>
+      remoteScreenStreams.size > 0
+        ? Array.from(remoteScreenStreams.keys())[0]
+        : null,
+    [remoteScreenStreams],
+  );
+
+  const screenSharingMember = useMemo(
+    () =>
+      screenSharingPeerId
+        ? members.find((m) => {
+            const peerId = m.user?.id || m.guestId || m.userId || m.id;
+            return peerId === screenSharingPeerId;
+          })
+        : null,
+    [screenSharingPeerId, members],
+  );
 
   return (
     <div className="flex gap-6 h-full">

@@ -90,38 +90,38 @@ export default function RoomPage() {
     };
   }, []);
 
-  const closeAllPopups = () => {
+  const closeAllPopups = useCallback(() => {
     setSoundSelectorOpen(false);
     setMusicPlayerOpen(false);
     setThemeSelectorOpen(false);
     setFocusDialogOpen(false);
     setRoomInfoOpen(false);
-  };
+  }, []);
 
-  const openSoundSelector = () => {
+  const openSoundSelector = useCallback(() => {
     closeAllPopups();
     setSoundSelectorOpen(true);
-  };
+  }, [closeAllPopups]);
 
-  const openMusicPlayer = () => {
+  const openMusicPlayer = useCallback(() => {
     closeAllPopups();
     setMusicPlayerOpen(true);
-  };
+  }, [closeAllPopups]);
 
-  const openThemeSelector = () => {
+  const openThemeSelector = useCallback(() => {
     closeAllPopups();
     setThemeSelectorOpen(true);
-  };
+  }, [closeAllPopups]);
 
-  const openFocusDialog = () => {
+  const openFocusDialog = useCallback(() => {
     closeAllPopups();
     setFocusDialogOpen(true);
-  };
+  }, [closeAllPopups]);
 
-  const openRoomInfo = () => {
+  const openRoomInfo = useCallback(() => {
     closeAllPopups();
     setRoomInfoOpen(true);
-  };
+  }, [closeAllPopups]);
 
   // Fetch room data immediately on mount (don't wait for session)
   useEffect(() => {
@@ -167,64 +167,67 @@ export default function RoomPage() {
     }
   }, [room]);
 
-  const leaveRoom = async () => {
+  const leaveRoom = useCallback(async () => {
     try {
       const guestId = localStorage.getItem(`guestId_${roomId}`);
       await roomClient.rooms.leave.$post({ json: { roomId, guestId } });
     } catch (error) {
       console.error("Failed to leave room:", error);
     }
-  };
+  }, [roomId]);
 
-  const joinRoom = async (guestName: string) => {
-    // Prevent duplicate join requests (especially in React Strict Mode)
-    if (joiningRef.current) {
-      return;
-    }
-
-    try {
-      joiningRef.current = true;
-
-      // Get existing guest ID from localStorage
-      const guestId = localStorage.getItem(`guestId_${roomId}`);
-
-      const response = await roomClient.rooms.join.$post({
-        json: {
-          roomId,
-          guestName,
-          guestId,
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-
-        // Store and update guest ID
-        if ("guestId" in result) {
-          localStorage.setItem(`guestId_${roomId}`, result.guestId as string);
-          // Update current user ID with the guestId (new or existing)
-          setCurrentUserId(result.guestId as string);
-        }
-
-        setHasJoinedRoom(true);
-        // Refresh room data to update members list
-        const roomResponse = await roomClient.rooms[":id"].$get({
-          param: { id: roomId },
-        });
-        if (roomResponse.ok) {
-          const data = await roomResponse.json();
-          setRoom(data);
-          // Update previous members list after joining
-          previousMembersRef.current =
-            data.members?.map((m: any) => m.id) || [];
-        }
+  const joinRoom = useCallback(
+    async (guestName: string) => {
+      // Prevent duplicate join requests (especially in React Strict Mode)
+      if (joiningRef.current) {
+        return;
       }
-    } catch (error) {
-      console.error("Failed to join room:", error);
-    } finally {
-      joiningRef.current = false;
-    }
-  };
+
+      try {
+        joiningRef.current = true;
+
+        // Get existing guest ID from localStorage
+        const guestId = localStorage.getItem(`guestId_${roomId}`);
+
+        const response = await roomClient.rooms.join.$post({
+          json: {
+            roomId,
+            guestName,
+            guestId,
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+
+          // Store and update guest ID
+          if ("guestId" in result) {
+            localStorage.setItem(`guestId_${roomId}`, result.guestId as string);
+            // Update current user ID with the guestId (new or existing)
+            setCurrentUserId(result.guestId as string);
+          }
+
+          setHasJoinedRoom(true);
+          // Refresh room data to update members list
+          const roomResponse = await roomClient.rooms[":id"].$get({
+            param: { id: roomId },
+          });
+          if (roomResponse.ok) {
+            const data = await roomResponse.json();
+            setRoom(data);
+            // Update previous members list after joining
+            previousMembersRef.current =
+              data.members?.map((m: any) => m.id) || [];
+          }
+        }
+      } catch (error) {
+        console.error("Failed to join room:", error);
+      } finally {
+        joiningRef.current = false;
+      }
+    },
+    [roomId],
+  );
 
   // Auto-join authenticated users
   useEffect(() => {
@@ -249,11 +252,14 @@ export default function RoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionLoading, session, room, hasJoinedRoom]);
 
-  const handleUsernameSubmit = (username: string) => {
-    localStorage.setItem("guestUsername", username);
-    setShowUsernameDialog(false);
-    joinRoom(username);
-  };
+  const handleUsernameSubmit = useCallback(
+    (username: string) => {
+      localStorage.setItem("guestUsername", username);
+      setShowUsernameDialog(false);
+      joinRoom(username);
+    },
+    [joinRoom],
+  );
 
   const handleChatUpdate = useCallback(
     (messages: any[], sendMessage: (text: string) => void) => {

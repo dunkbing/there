@@ -49,6 +49,10 @@ export function useWebRTC(
   const screenStreamRef = useRef<MediaStream | null>(screenStream);
   const peersSharingScreenRef = useRef<Set<string>>(new Set());
 
+  // Track intervals and event listeners for cleanup
+  const statsIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const trackCleanupRef = useRef<Map<string, () => void>>(new Map());
+
   // Update local stream ref
   useEffect(() => {
     localStreamRef.current = localStream;
@@ -58,6 +62,48 @@ export function useWebRTC(
   useEffect(() => {
     screenStreamRef.current = screenStream;
   }, [screenStream]);
+
+  // Cleanup function for a specific peer
+  const cleanupPeer = useCallback((peerId: string) => {
+    // Clear stats interval
+    const interval = statsIntervalsRef.current.get(peerId);
+    if (interval) {
+      clearInterval(interval);
+      statsIntervalsRef.current.delete(peerId);
+    }
+
+    // Remove track event listeners
+    const cleanup = trackCleanupRef.current.get(peerId);
+    if (cleanup) {
+      cleanup();
+      trackCleanupRef.current.delete(peerId);
+    }
+
+    // Close peer connection
+    const pc = peersRef.current[peerId];
+    if (pc) {
+      pc.close();
+      delete peersRef.current[peerId];
+    }
+
+    // Remove data channel
+    dataChannelsRef.current.delete(peerId);
+
+    // Remove from screen sharing set
+    peersSharingScreenRef.current.delete(peerId);
+
+    // Remove streams
+    setRemoteStreams((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(peerId);
+      return newMap;
+    });
+    setRemoteScreenStreams((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(peerId);
+      return newMap;
+    });
+  }, []);
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -140,10 +186,11 @@ export function useWebRTC(
         }
 
         // Handle remote tracks
-        // Store stream reference per peer to detect when it changes
-        const streamRefs = new Map<string, MediaStream>();
-
         pc.ontrack = (event) => {
+          const trackId = `${peerId}-${event.track.id}`;
+
+          // Store cleanup functions for this track
+          const trackEventHandlers: Array<() => void> = [];
           console.log(
             `[WebRTC] 🎥 Received ${event.track.kind} track from ${peerId}`,
             {
@@ -159,7 +206,7 @@ export function useWebRTC(
           );
 
           // Listen for unmute event to detect when track starts producing media
-          event.track.addEventListener("unmute", () => {
+          const handleUnmute = () => {
             console.log(`[WebRTC] ✅ Track unmuted for ${peerId}:`, {
               kind: event.track.kind,
               trackId: event.track.id,
@@ -212,13 +259,14 @@ export function useWebRTC(
             });
 
             // Start stats monitoring now that track is unmuted
-            if (!statsInterval && event.track.kind === "video") {
+            if (event.track.kind === "video" && !statsIntervalsRef.current.has(trackId)) {
               console.log(
                 `[WebRTC] Starting stats monitoring for ${peerId} after unmute`,
               );
-              statsInterval = setInterval(async () => {
+              const interval = setInterval(async () => {
                 if (event.track.readyState === "ended") {
-                  if (statsInterval) clearInterval(statsInterval);
+                  clearInterval(interval);
+                  statsIntervalsRef.current.delete(trackId);
                   return;
                 }
 
@@ -227,7 +275,8 @@ export function useWebRTC(
                   console.log(
                     `[WebRTC] Track is now muted for ${peerId}, stopping stats monitoring`,
                   );
-                  if (statsInterval) clearInterval(statsInterval);
+                  clearInterval(interval);
+                  statsIntervalsRef.current.delete(trackId);
                   return;
                 }
 
@@ -267,7 +316,8 @@ export function useWebRTC(
                         console.log(
                           `[WebRTC] Stream appears dead for ${peerId}, removing...`,
                         );
-                        if (statsInterval) clearInterval(statsInterval);
+                        clearInterval(interval);
+                        statsIntervalsRef.current.delete(trackId);
 
                         setRemoteStreams((prev) => {
                           const newMap = new Map(prev);
@@ -296,13 +346,16 @@ export function useWebRTC(
                   );
                 }
               }, 2000);
+              statsIntervalsRef.current.set(trackId, interval);
             }
 
             // Trigger stream update to re-render components
             setStreamUpdateCounter((c) => c + 1);
-          });
+          };
+          event.track.addEventListener("unmute", handleUnmute);
+          trackEventHandlers.push(() => event.track.removeEventListener("unmute", handleUnmute));
 
-          event.track.addEventListener("mute", async () => {
+          const handleMute = async () => {
             console.log(`[WebRTC] ⚠️ Track muted for ${peerId}:`, {
               kind: event.track.kind,
               trackId: event.track.id,
@@ -333,10 +386,12 @@ export function useWebRTC(
             });
 
             setStreamUpdateCounter((c) => c + 1);
-          });
+          };
+          event.track.addEventListener("mute", handleMute);
+          trackEventHandlers.push(() => event.track.removeEventListener("mute", handleMute));
 
           // Listen for track ending to remove stream
-          event.track.addEventListener("ended", () => {
+          const handleEnded = () => {
             console.log(`[WebRTC] ❌ Track ended for ${peerId}:`, {
               kind: event.track.kind,
               trackId: event.track.id,
@@ -362,18 +417,27 @@ export function useWebRTC(
 
               return newMap;
             });
+          };
+          event.track.addEventListener("ended", handleEnded);
+          trackEventHandlers.push(() => event.track.removeEventListener("ended", handleEnded));
+
+          // Store cleanup function for this peer's tracks
+          const existingCleanup = trackCleanupRef.current.get(peerId);
+          trackCleanupRef.current.set(peerId, () => {
+            if (existingCleanup) existingCleanup();
+            trackEventHandlers.forEach(cleanup => cleanup());
           });
 
           // Log track stats continuously to monitor byte flow (only if track is not initially muted)
           let lastFramesReceived = 0;
           let noDataCounter = 0;
-          let statsInterval: NodeJS.Timeout | null = null;
 
           // Only start stats monitoring if track is not muted (has actual media)
-          if (!event.track.muted) {
-            statsInterval = setInterval(async () => {
+          if (!event.track.muted && event.track.kind === "video") {
+            const interval = setInterval(async () => {
               if (event.track.readyState === "ended") {
-                if (statsInterval) clearInterval(statsInterval);
+                clearInterval(interval);
+                statsIntervalsRef.current.delete(trackId);
                 return;
               }
 
@@ -382,7 +446,8 @@ export function useWebRTC(
                 console.log(
                   `[WebRTC] Track is now muted for ${peerId}, stopping stats monitoring`,
                 );
-                if (statsInterval) clearInterval(statsInterval);
+                clearInterval(interval);
+                statsIntervalsRef.current.delete(trackId);
                 return;
               }
 
@@ -426,7 +491,8 @@ export function useWebRTC(
                       console.log(
                         `[WebRTC] Stream appears dead for ${peerId}, removing...`,
                       );
-                      if (statsInterval) clearInterval(statsInterval);
+                      clearInterval(interval);
+                      statsIntervalsRef.current.delete(trackId);
 
                       // Remove the stream
                       setRemoteStreams((prev) => {
@@ -468,6 +534,7 @@ export function useWebRTC(
                 );
               }
             }, 2000);
+            statsIntervalsRef.current.set(trackId, interval);
           } else {
             console.log(
               `[WebRTC] Track is muted for ${peerId}, skipping stats monitoring`,
@@ -490,25 +557,13 @@ export function useWebRTC(
               // If peer sent us a stream, use it
               if (event.streams && event.streams[0]) {
                 const peerStream = event.streams[0];
-
-                // Check if this is a different stream than what we had before
-                const previousStream = streamRefs.get(peerId);
-                if (!previousStream || previousStream !== peerStream) {
-                  console.log(
-                    `[WebRTC] New ${streamType} stream from ${peerId} with ${peerStream.getTracks().length} tracks:`,
-                    peerStream
-                      .getTracks()
-                      .map((t) => `${t.kind}(${t.readyState})`),
-                  );
-                  streamRefs.set(peerId, peerStream);
-                  newMap.set(peerId, peerStream);
-                } else {
-                  console.log(
-                    `[WebRTC] Track added to existing ${streamType} stream for ${peerId}, total tracks: ${peerStream.getTracks().length}`,
-                  );
-                  // Stream is the same, but trigger React update anyway
-                  newMap.set(peerId, peerStream);
-                }
+                console.log(
+                  `[WebRTC] Adding ${streamType} stream from ${peerId} with ${peerStream.getTracks().length} tracks:`,
+                  peerStream
+                    .getTracks()
+                    .map((t) => `${t.kind}(${t.readyState})`),
+                );
+                newMap.set(peerId, peerStream);
               } else {
                 // Fallback: create our own stream and add the track
                 if (!stream) {
@@ -967,16 +1022,7 @@ export function useWebRTC(
 
         case "disconnect": {
           console.log(`[WebRTC] Peer ${peerId} disconnected`);
-          if (peersRef.current[peerId]) {
-            peersRef.current[peerId].close();
-            delete peersRef.current[peerId];
-          }
-          dataChannelsRef.current.delete(peerId);
-          setRemoteStreams((prev) => {
-            const newMap = new Map(prev);
-            newMap.delete(peerId);
-            return newMap;
-          });
+          cleanupPeer(peerId);
           if (onUserLeft) {
             onUserLeft(peerId);
           }
@@ -1017,13 +1063,13 @@ export function useWebRTC(
       }
 
       ws.close();
-      Object.values(peersRef.current).forEach((pc) => {
-        pc.close();
+
+      // Clean up all peers properly (intervals, event listeners, connections)
+      Object.keys(peersRef.current).forEach((peerId) => {
+        cleanupPeer(peerId);
       });
-      peersRef.current = {};
-      dataChannelsRef.current.clear();
     };
-  }, [roomId, userId, onUserLeft]);
+  }, [roomId, userId, onUserLeft, cleanupPeer]);
 
   // Update tracks on existing peer connections when localStream changes
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Send } from "lucide-react";
@@ -28,12 +28,12 @@ export function RoomChat({
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  const sendMessage = () => {
+  const sendMessage = useCallback(() => {
     if (chatInput.trim()) {
       onSendMessage(chatInput);
       setChatInput("");
     }
-  };
+  }, [chatInput, onSendMessage]);
 
   return (
     <Card className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-4 flex flex-col h-[500px]">
