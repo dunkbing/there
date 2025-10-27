@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Whiteboard } from "@/components/whiteboard";
-import { Video, Mic, MicOff, VideoOff, Pencil } from "lucide-react";
 import type { RoomMemberWithRelations } from "@/lib/schemas";
 import { useWebRTC } from "@/hooks/useWebRTC";
 
@@ -16,7 +14,19 @@ interface MeetingWorkspaceProps {
   onChatUpdate?: (messages: any[], sendMessage: (text: string) => void) => void;
   onUserLeft?: (userId: string) => void;
   onUserJoined?: (userId: string) => void;
+  onControlsReady?: (controls: {
+    isMicOn: boolean;
+    isVideoOn: boolean;
+    isScreenSharing: boolean;
+    mainContent: MainContentType;
+    toggleMic: () => void;
+    toggleVideo: () => void;
+    toggleScreenShare: () => void;
+    toggleWhiteboard: () => void;
+  }) => void;
 }
+
+type MainContentType = "default" | "screen-share" | "whiteboard";
 
 export function MeetingWorkspace({
   members,
@@ -26,27 +36,38 @@ export function MeetingWorkspace({
   onChatUpdate,
   onUserLeft,
   onUserJoined,
+  onControlsReady,
 }: MeetingWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<"video" | "whiteboard">("video");
   const [isMicOn, setIsMicOn] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [mainContent, setMainContent] = useState<MainContentType>("default");
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [trackStateCounter, setTrackStateCounter] = useState(0);
+
   const videoRef = useRef<HTMLVideoElement>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement | null>>(
     new Map(),
   );
 
-  // Initialize WebRTC for chat and video
-  const { messages, sendMessage, remoteStreams, streamUpdateCounter } =
-    useWebRTC(
-      roomId,
-      currentUserId,
-      currentUserName,
-      localStream,
-      onUserLeft,
-      onUserJoined,
-    );
+  // Initialize WebRTC for chat, video, and screen sharing
+  const {
+    messages,
+    sendMessage,
+    remoteStreams,
+    remoteScreenStreams,
+    streamUpdateCounter,
+  } = useWebRTC(
+    roomId,
+    currentUserId,
+    currentUserName,
+    localStream,
+    screenStream,
+    onUserLeft,
+    onUserJoined,
+  );
 
   // Expose chat data to parent component
   useEffect(() => {
@@ -55,21 +76,50 @@ export function MeetingWorkspace({
     }
   }, [messages, sendMessage, onChatUpdate]);
 
+  // Expose controls to parent component
   useEffect(() => {
-    // Update video element when stream changes
+    if (onControlsReady) {
+      onControlsReady({
+        isMicOn,
+        isVideoOn,
+        isScreenSharing,
+        mainContent,
+        toggleMic,
+        toggleVideo,
+        toggleScreenShare,
+        toggleWhiteboard,
+      });
+    }
+  }, [isMicOn, isVideoOn, isScreenSharing, mainContent, onControlsReady]);
+
+  // Update local video element
+  useEffect(() => {
     if (videoRef.current && localStream) {
       videoRef.current.srcObject = localStream;
     }
   }, [localStream]);
 
+  // Update screen share video element
+  useEffect(() => {
+    if (screenVideoRef.current && screenStream) {
+      screenVideoRef.current.srcObject = screenStream;
+    }
+  }, [screenStream]);
+
+  // Auto-switch to screen share when someone (including self) starts sharing
+  useEffect(() => {
+    if (isScreenSharing || remoteScreenStreams.size > 0) {
+      setMainContent("screen-share");
+    } else if (mainContent === "screen-share") {
+      // Switch back to default when screen sharing stops
+      setMainContent("default");
+    }
+  }, [isScreenSharing, remoteScreenStreams.size]);
+
   // Attach remote streams to video elements
   useEffect(() => {
     console.log(
       `[Component] Updating remote streams, count: ${remoteStreams.size}, update: ${streamUpdateCounter}`,
-    );
-    console.log(
-      `[Component] Remote stream peer IDs:`,
-      Array.from(remoteStreams.keys()),
     );
 
     // Listen to track events to trigger re-renders when tracks change state
@@ -79,12 +129,6 @@ export function MeetingWorkspace({
       // Add listeners to all tracks
       stream.getTracks().forEach((track) => {
         const handler = () => {
-          console.log(`[Component] Track state changed for ${peerId}:`, {
-            kind: track.kind,
-            readyState: track.readyState,
-            enabled: track.enabled,
-          });
-          // Force re-render by updating counter
           setTrackStateCounter((c) => c + 1);
         };
 
@@ -107,142 +151,12 @@ export function MeetingWorkspace({
 
     remoteStreams.forEach((stream, peerId) => {
       const videoElement = remoteVideoRefs.current.get(peerId);
-      const tracks = stream.getTracks();
-      const videoTrack = stream.getVideoTracks()[0];
-      console.log(`[Component] Remote stream for ${peerId}:`, {
-        hasTracks: tracks.length > 0,
-        tracks: tracks.map((t) => `${t.kind}(${t.readyState})`),
-        hasVideoElement: !!videoElement,
-        currentSrcObject:
-          videoElement?.srcObject === stream ? "same" : "different",
-        videoElementReadyState: videoElement?.readyState,
-        videoElementPaused: videoElement?.paused,
-        videoTrackSettings: videoTrack?.getSettings(),
-        streamActive: stream.active,
-        streamId: stream.id,
-      });
-
-      if (videoElement) {
-        // Add error event listeners
-        videoElement.onerror = (e) => {
-          console.error(`[Component] Video element error for ${peerId}:`, e, {
-            error: videoElement.error,
-            networkState: videoElement.networkState,
-            readyState: videoElement.readyState,
-          });
-        };
-
-        videoElement.onstalled = () => {
-          console.warn(`[Component] Video stalled for ${peerId}`);
-        };
-
-        videoElement.onsuspend = () => {
-          console.warn(`[Component] Video suspended for ${peerId}`);
-        };
-
-        // Check if stream is inactive (all tracks ended)
-        const hasLiveTracks = stream
-          .getVideoTracks()
-          .some((t) => t.readyState === "live");
-
-        if (!stream.active || !hasLiveTracks) {
-          // Stream has no active tracks - clear the video element
-          if (videoElement.srcObject) {
-            console.log(
-              `[Component] Clearing srcObject for ${peerId} (stream inactive)`,
-            );
-            videoElement.srcObject = null;
-          }
-        } else if (videoElement.srcObject !== stream) {
-          // Always set srcObject to ensure it's up to date
-          console.log(`[Component] Setting srcObject for ${peerId}`, {
-            streamId: stream.id,
-            streamActive: stream.active,
-            tracks: stream.getTracks().map((t) => ({
-              kind: t.kind,
-              id: t.id,
-              readyState: t.readyState,
-              enabled: t.enabled,
-              muted: t.muted,
-            })),
-          });
+      if (videoElement && stream.active) {
+        if (videoElement.srcObject !== stream) {
           videoElement.srcObject = stream;
-
-          // Wait for metadata to load, then play
-          const onLoadedMetadata = () => {
-            console.log(
-              `[Component] Metadata loaded for ${peerId}, playing video`,
-            );
-            videoElement
-              .play()
-              .then(() => {
-                console.log(`[Component] ✅ Video playing for ${peerId}`, {
-                  readyState: videoElement.readyState,
-                  paused: videoElement.paused,
-                  videoWidth: videoElement.videoWidth,
-                  videoHeight: videoElement.videoHeight,
-                });
-              })
-              .catch((e) => {
-                console.error(
-                  `[Component] Failed to play video for ${peerId}:`,
-                  e,
-                );
-              });
-          };
-
-          videoElement.addEventListener("loadedmetadata", onLoadedMetadata, {
-            once: true,
+          videoElement.play().catch((e) => {
+            console.error(`Failed to play video for ${peerId}:`, e);
           });
-
-          // Also try to play immediately in case metadata is already loaded
-          if (videoElement.readyState >= 1) {
-            console.log(
-              `[Component] Metadata already loaded for ${peerId}, playing immediately`,
-            );
-            videoElement
-              .play()
-              .then(() => {
-                console.log(
-                  `[Component] ✅ Video playing for ${peerId} (immediate)`,
-                  {
-                    readyState: videoElement.readyState,
-                    paused: videoElement.paused,
-                    videoWidth: videoElement.videoWidth,
-                    videoHeight: videoElement.videoHeight,
-                  },
-                );
-              })
-              .catch((e) => {
-                console.error(
-                  `[Component] Failed to play video for ${peerId}:`,
-                  e,
-                );
-              });
-          }
-        } else {
-          // Even if srcObject is the same, ensure video is playing
-          if (videoElement.paused) {
-            console.log(
-              `[Component] Video paused, attempting to play for ${peerId}`,
-            );
-            videoElement
-              .play()
-              .then(() => {
-                console.log(`[Component] ✅ Resumed video for ${peerId}`, {
-                  readyState: videoElement.readyState,
-                  paused: videoElement.paused,
-                  videoWidth: videoElement.videoWidth,
-                  videoHeight: videoElement.videoHeight,
-                });
-              })
-              .catch((e) => {
-                console.error(
-                  `[Component] Failed to play video for ${peerId}:`,
-                  e,
-                );
-              });
-          }
         }
       }
     });
@@ -250,7 +164,6 @@ export function MeetingWorkspace({
     // Remove streams for peers that are no longer in remoteStreams
     remoteVideoRefs.current.forEach((videoElement, peerId) => {
       if (videoElement && !remoteStreams.has(peerId)) {
-        console.log(`[Component] Removing stream for ${peerId}`);
         videoElement.srcObject = null;
       }
     });
@@ -258,26 +171,28 @@ export function MeetingWorkspace({
     return cleanup;
   }, [remoteStreams, streamUpdateCounter, trackStateCounter]);
 
+  // Cleanup on unmount
   useEffect(() => {
-    // Cleanup on unmount
     return () => {
       if (localStream) {
         localStream.getTracks().forEach((track) => track.stop());
       }
+      if (screenStream) {
+        screenStream.getTracks().forEach((track) => track.stop());
+      }
     };
-  }, [localStream]);
+  }, [localStream, screenStream]);
 
   const toggleMic = async () => {
     try {
       if (isMicOn) {
-        // Turn off microphone - stop and remove audio tracks
+        // Turn off microphone
         if (localStream) {
           const audioTracks = localStream.getAudioTracks();
           audioTracks.forEach((track) => {
             track.stop();
             localStream.removeTrack(track);
           });
-          // If no tracks remain, set to null; otherwise create new stream
           const remainingTracks = localStream.getTracks();
           setLocalStream(
             remainingTracks.length > 0
@@ -296,16 +211,13 @@ export function MeetingWorkspace({
 
         if (audioTrack) {
           if (localStream) {
-            // Add to existing stream
             const newStream = new MediaStream([
               ...localStream.getTracks(),
               audioTrack,
             ]);
             setLocalStream(newStream);
           } else {
-            // Create new stream
-            const newStream = new MediaStream([audioTrack]);
-            setLocalStream(newStream);
+            setLocalStream(new MediaStream([audioTrack]));
           }
           setIsMicOn(true);
         }
@@ -319,14 +231,13 @@ export function MeetingWorkspace({
   const toggleVideo = async () => {
     try {
       if (isVideoOn) {
-        // Turn off camera - stop and remove video tracks
+        // Turn off camera
         if (localStream) {
           const videoTracks = localStream.getVideoTracks();
           videoTracks.forEach((track) => {
             track.stop();
             localStream.removeTrack(track);
           });
-          // If no tracks remain, set to null; otherwise create new stream
           const remainingTracks = localStream.getTracks();
           setLocalStream(
             remainingTracks.length > 0
@@ -345,16 +256,13 @@ export function MeetingWorkspace({
 
         if (videoTrack) {
           if (localStream) {
-            // Add to existing stream
             const newStream = new MediaStream([
               ...localStream.getTracks(),
               videoTrack,
             ]);
             setLocalStream(newStream);
           } else {
-            // Create new stream
-            const newStream = new MediaStream([videoTrack]);
-            setLocalStream(newStream);
+            setLocalStream(new MediaStream([videoTrack]));
           }
           setIsVideoOn(true);
         }
@@ -365,194 +273,222 @@ export function MeetingWorkspace({
     }
   };
 
+  const toggleScreenShare = async () => {
+    try {
+      if (isScreenSharing) {
+        // Stop screen sharing
+        if (screenStream) {
+          screenStream.getTracks().forEach((track) => track.stop());
+          setScreenStream(null);
+        }
+        setIsScreenSharing(false);
+      } else {
+        // Start screen sharing
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+
+        // Listen for the browser's "Stop sharing" button
+        displayStream.getVideoTracks()[0].addEventListener("ended", () => {
+          setScreenStream(null);
+          setIsScreenSharing(false);
+        });
+
+        setScreenStream(displayStream);
+        setIsScreenSharing(true);
+      }
+    } catch (error) {
+      console.error("Error accessing screen:", error);
+      if (error instanceof Error && error.name !== "NotAllowedError") {
+        alert("Unable to share screen. Please check permissions.");
+      }
+    }
+  };
+
+  const toggleWhiteboard = () => {
+    if (mainContent === "whiteboard") {
+      setMainContent("default");
+    } else {
+      setMainContent("whiteboard");
+    }
+  };
+
+  // Get the peer who is sharing screen (for main content display)
+  const screenSharingPeerId =
+    remoteScreenStreams.size > 0
+      ? Array.from(remoteScreenStreams.keys())[0]
+      : null;
+  const screenSharingMember = screenSharingPeerId
+    ? members.find((m) => {
+        const peerId = m.user?.id || m.guestId || m.userId || m.id;
+        return peerId === screenSharingPeerId;
+      })
+    : null;
+
   return (
-    <div className="space-y-6">
-      {/* Tab Navigation */}
-      <div className="flex gap-2 border-b border-border">
-        <button
-          onClick={() => setActiveTab("video")}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === "video"
-              ? "text-primary border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Video className="w-4 h-4 inline mr-2" />
-          Video
-        </button>
-        <button
-          onClick={() => setActiveTab("whiteboard")}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === "whiteboard"
-              ? "text-primary border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Pencil className="w-4 h-4 inline mr-2" />
-          Whiteboard
-        </button>
+    <div className="flex gap-6 h-full">
+      {/* Left Column - Video Grid */}
+      <div className="w-80 shrink-0">
+        <Card className="bg-card/50 backdrop-blur-sm border-border p-4 h-full">
+          <h3 className="text-sm font-semibold mb-3 text-muted-foreground">
+            Participants ({members.length})
+          </h3>
+          <div className="space-y-3">
+            {members.map((member) => {
+              const peerId =
+                member.user?.id || member.guestId || member.userId || member.id;
+              const isCurrentUser = peerId === currentUserId;
+              const memberName =
+                member.user?.name || member.guestName || "Guest";
+              const initials = (
+                member.user?.name?.[0] ||
+                member.guestName?.[0] ||
+                "?"
+              ).toUpperCase();
+
+              // Check if remote peer has active video track
+              const remoteStream = !isCurrentUser
+                ? remoteStreams.get(peerId)
+                : null;
+
+              const hasRemoteVideo = remoteStream
+                ? (() => {
+                    const videoTracks = remoteStream.getVideoTracks();
+                    const hasLiveTrack = videoTracks.some(
+                      (t) => t.readyState === "live" && t.enabled && !t.muted,
+                    );
+                    const isStreamActive = remoteStream.active;
+                    return (
+                      hasLiveTrack && isStreamActive && videoTracks.length > 0
+                    );
+                  })()
+                : false;
+
+              const hasVideo = isCurrentUser ? isVideoOn : hasRemoteVideo;
+
+              return (
+                <div
+                  key={member.id}
+                  className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video flex items-center justify-center"
+                >
+                  {hasVideo ? (
+                    <video
+                      ref={(el) => {
+                        if (isCurrentUser) {
+                          videoRef.current = el;
+                        } else {
+                          if (el) {
+                            remoteVideoRefs.current.set(peerId, el);
+                          } else {
+                            remoteVideoRefs.current.delete(peerId);
+                          }
+                        }
+                      }}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="w-12 h-12 rounded-full bg-linear-to-br from-primary to-accent flex items-center justify-center text-lg font-semibold">
+                        {initials}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Name tag */}
+                  <div className="absolute bottom-1 left-1 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
+                    <p className="text-white text-xs font-medium">
+                      {memberName} {isCurrentUser && "(You)"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       </div>
 
-      {/* Video Tab */}
-      {activeTab === "video" && (
-        <div className="space-y-4">
-          <Card className="bg-card border-border p-6">
-            {/* Video Grid */}
-            <div className="bg-black rounded-lg overflow-hidden mb-4 aspect-video p-4">
-              <div
-                className={`grid gap-4 h-full ${
-                  members.length === 1
-                    ? "grid-cols-1"
-                    : members.length === 2
-                      ? "grid-cols-2"
-                      : members.length <= 4
-                        ? "grid-cols-2 grid-rows-2"
-                        : members.length <= 6
-                          ? "grid-cols-3 grid-rows-2"
-                          : "grid-cols-3 grid-rows-3"
-                }`}
-              >
-                {members.map((member) => {
-                  // For peer identification: use user.id for authenticated users, guestId for guests
-                  const peerId =
-                    member.user?.id ||
-                    member.guestId ||
-                    member.userId ||
-                    member.id;
-
-                  const isCurrentUser = peerId === currentUserId;
-                  const memberName =
-                    member.user?.name || member.guestName || "Guest";
-                  const initials = (
-                    member.user?.name?.[0] ||
-                    member.guestName?.[0] ||
-                    "?"
-                  ).toUpperCase();
-
-                  // Check if remote peer has active video track
-                  const remoteStream = !isCurrentUser
-                    ? remoteStreams.get(peerId)
-                    : null;
-
-                  const hasRemoteVideo = remoteStream
-                    ? (() => {
-                        const videoTracks = remoteStream.getVideoTracks();
-                        // Check if stream has any video tracks that are live, enabled, and NOT muted
-                        const hasLiveTrack = videoTracks.some(
-                          (t) =>
-                            t.readyState === "live" && t.enabled && !t.muted,
-                        );
-                        // Also check if stream is active (has at least one track that's not ended)
-                        const isStreamActive = remoteStream.active;
-                        return (
-                          hasLiveTrack &&
-                          isStreamActive &&
-                          videoTracks.length > 0
-                        );
-                      })()
-                    : false;
-
-                  const hasVideo = isCurrentUser ? isVideoOn : hasRemoteVideo;
-
-                  return (
-                    <div
-                      key={member.id}
-                      className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center"
-                    >
-                      {hasVideo ? (
-                        // Show video for current user or remote peer
-                        <video
-                          ref={(el) => {
-                            if (isCurrentUser) {
-                              videoRef.current = el;
-                            } else {
-                              // Store remote video refs
-                              if (el) {
-                                remoteVideoRefs.current.set(peerId, el);
-                              } else {
-                                remoteVideoRefs.current.delete(peerId);
-                              }
-                            }
-                          }}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        // Show name label for users with camera off
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <div className="w-16 h-16 rounded-full bg-linear-to-br from-primary to-accent flex items-center justify-center text-2xl font-semibold">
-                            {initials}
-                          </div>
-                          <p className="text-white font-medium">{memberName}</p>
-                          {isCurrentUser && (
-                            <p className="text-xs text-gray-400">(You)</p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Name tag at bottom */}
-                      {hasVideo && (
-                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full">
-                          <p className="text-white text-sm font-medium">
-                            {memberName} {isCurrentUser && "(You)"}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+      {/* Center - Main Content Area */}
+      <div className="flex-1">
+        <Card className="bg-card/50 backdrop-blur-sm border-border h-full flex items-center justify-center relative overflow-hidden">
+          {/* Default - Current User Avatar */}
+          {mainContent === "default" && (
+            <div className="flex flex-col items-center justify-center gap-6">
+              <div className="w-32 h-32 rounded-full bg-linear-to-br from-primary to-accent flex items-center justify-center text-5xl font-semibold">
+                {currentUserName[0]?.toUpperCase() || "?"}
+              </div>
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold">{currentUserName}</h2>
+                <p className="text-muted-foreground mt-2">
+                  {isVideoOn || isMicOn || isScreenSharing
+                    ? "Connected"
+                    : "Enable camera or microphone to join"}
+                </p>
               </div>
             </div>
+          )}
 
-            {/* Controls */}
-            <div className="flex gap-3 justify-center">
-              <Button
-                onClick={toggleMic}
-                variant="outline"
-                className={`gap-2 ${!isMicOn ? "bg-destructive/10 text-destructive border-destructive" : ""}`}
-              >
-                {isMicOn ? (
-                  <>
-                    <Mic className="w-4 h-4" />
-                    <span>Microphone</span>
-                  </>
-                ) : (
-                  <>
-                    <MicOff className="w-4 h-4" />
-                    <span>Microphone</span>
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={toggleVideo}
-                variant="outline"
-                className={`gap-2 ${!isVideoOn ? "bg-destructive/10 text-destructive border-destructive" : ""}`}
-              >
-                {isVideoOn ? (
-                  <>
-                    <Video className="w-4 h-4" />
-                    <span>Camera</span>
-                  </>
-                ) : (
-                  <>
-                    <VideoOff className="w-4 h-4" />
-                    <span>Camera</span>
-                  </>
-                )}
-              </Button>
+          {/* Screen Share Display */}
+          {mainContent === "screen-share" && (
+            <div className="w-full h-full flex items-center justify-center bg-black">
+              {isScreenSharing && screenStream ? (
+                // Show own screen share
+                <div className="relative w-full h-full">
+                  <video
+                    ref={screenVideoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
+                    <p className="text-white font-medium">
+                      You are sharing your screen
+                    </p>
+                  </div>
+                </div>
+              ) : screenSharingPeerId &&
+                remoteScreenStreams.has(screenSharingPeerId) ? (
+                // Show remote screen share
+                <div className="relative w-full h-full">
+                  <video
+                    ref={(el) => {
+                      if (el && remoteScreenStreams.has(screenSharingPeerId)) {
+                        const stream =
+                          remoteScreenStreams.get(screenSharingPeerId);
+                        if (stream) {
+                          el.srcObject = stream;
+                          el.play().catch(console.error);
+                        }
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
+                    <p className="text-white font-medium">
+                      {screenSharingMember?.user?.name ||
+                        screenSharingMember?.guestName ||
+                        "Someone"}{" "}
+                      is sharing their screen
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
-          </Card>
-        </div>
-      )}
+          )}
 
-      {/* Whiteboard Tab */}
-      {activeTab === "whiteboard" && (
-        <div className="space-y-4">
-          <Whiteboard />
-        </div>
-      )}
+          {/* Whiteboard */}
+          {mainContent === "whiteboard" && (
+            <div className="w-full h-full">
+              <Whiteboard />
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

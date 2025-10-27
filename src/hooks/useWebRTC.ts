@@ -29,6 +29,7 @@ export function useWebRTC(
   userId: string,
   userName: string,
   localStream: MediaStream | null = null,
+  screenStream: MediaStream | null = null,
   onUserLeft?: (userId: string) => void,
   onUserJoined?: (userId: string) => void,
 ) {
@@ -36,17 +37,27 @@ export function useWebRTC(
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(
     new Map(),
   );
+  const [remoteScreenStreams, setRemoteScreenStreams] = useState<
+    Map<string, MediaStream>
+  >(new Map());
   const [streamUpdateCounter, setStreamUpdateCounter] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
   const peersRef = useRef<Record<string, RTCPeerConnection>>({});
   const dataChannelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(localStream);
+  const screenStreamRef = useRef<MediaStream | null>(screenStream);
+  const peersSharingScreenRef = useRef<Set<string>>(new Set());
 
   // Update local stream ref
   useEffect(() => {
     localStreamRef.current = localStream;
   }, [localStream]);
+
+  // Update screen stream ref
+  useEffect(() => {
+    screenStreamRef.current = screenStream;
+  }, [screenStream]);
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -156,8 +167,15 @@ export function useWebRTC(
               enabled: event.track.enabled,
             });
 
+            // Check if this peer is sharing screen
+            const isScreenShare = peersSharingScreenRef.current.has(peerId);
+            const targetStreamsState = isScreenShare
+              ? setRemoteScreenStreams
+              : setRemoteStreams;
+            const streamType = isScreenShare ? "screen share" : "camera";
+
             // Add stream now that track is unmuted
-            setRemoteStreams((prev) => {
+            targetStreamsState((prev) => {
               const newMap = new Map(prev);
               let stream = newMap.get(peerId);
 
@@ -165,7 +183,7 @@ export function useWebRTC(
               if (event.streams && event.streams[0]) {
                 const peerStream = event.streams[0];
                 console.log(
-                  `[WebRTC] Adding stream for ${peerId} after unmute with ${peerStream.getTracks().length} tracks:`,
+                  `[WebRTC] Adding ${streamType} stream for ${peerId} after unmute with ${peerStream.getTracks().length} tracks:`,
                   peerStream
                     .getTracks()
                     .map((t) => `${t.kind}(${t.readyState})`),
@@ -176,14 +194,14 @@ export function useWebRTC(
                 if (!stream) {
                   stream = new MediaStream();
                   console.log(
-                    `[WebRTC] Creating new remote stream for ${peerId} after unmute`,
+                    `[WebRTC] Creating new remote ${streamType} stream for ${peerId} after unmute`,
                   );
                 }
 
                 if (!stream.getTrackById(event.track.id)) {
                   stream.addTrack(event.track);
                   console.log(
-                    `[WebRTC] ✅ Added ${event.track.kind} track to remote stream for ${peerId}`,
+                    `[WebRTC] ✅ Added ${event.track.kind} track to remote ${streamType} stream for ${peerId}`,
                   );
                 }
 
@@ -458,7 +476,14 @@ export function useWebRTC(
 
           // Only add stream if track is not muted (has actual media)
           if (!event.track.muted) {
-            setRemoteStreams((prev) => {
+            // Check if this peer is sharing screen
+            const isScreenShare = peersSharingScreenRef.current.has(peerId);
+            const targetStreamsState = isScreenShare
+              ? setRemoteScreenStreams
+              : setRemoteStreams;
+            const streamType = isScreenShare ? "screen share" : "camera";
+
+            targetStreamsState((prev) => {
               const newMap = new Map(prev);
               let stream = newMap.get(peerId);
 
@@ -470,7 +495,7 @@ export function useWebRTC(
                 const previousStream = streamRefs.get(peerId);
                 if (!previousStream || previousStream !== peerStream) {
                   console.log(
-                    `[WebRTC] New stream from ${peerId} with ${peerStream.getTracks().length} tracks:`,
+                    `[WebRTC] New ${streamType} stream from ${peerId} with ${peerStream.getTracks().length} tracks:`,
                     peerStream
                       .getTracks()
                       .map((t) => `${t.kind}(${t.readyState})`),
@@ -479,7 +504,7 @@ export function useWebRTC(
                   newMap.set(peerId, peerStream);
                 } else {
                   console.log(
-                    `[WebRTC] Track added to existing stream for ${peerId}, total tracks: ${peerStream.getTracks().length}`,
+                    `[WebRTC] Track added to existing ${streamType} stream for ${peerId}, total tracks: ${peerStream.getTracks().length}`,
                   );
                   // Stream is the same, but trigger React update anyway
                   newMap.set(peerId, peerStream);
@@ -489,19 +514,19 @@ export function useWebRTC(
                 if (!stream) {
                   stream = new MediaStream();
                   console.log(
-                    `[WebRTC] Creating new remote stream for ${peerId}`,
+                    `[WebRTC] Creating new remote ${streamType} stream for ${peerId}`,
                   );
                 }
 
                 if (!stream.getTrackById(event.track.id)) {
                   stream.addTrack(event.track);
                   console.log(
-                    `[WebRTC] ✅ Added ${event.track.kind} track to remote stream for ${peerId}`,
+                    `[WebRTC] ✅ Added ${event.track.kind} track to remote ${streamType} stream for ${peerId}`,
                   );
                 }
 
                 console.log(
-                  `[WebRTC] Remote stream for ${peerId} now has ${stream.getTracks().length} tracks:`,
+                  `[WebRTC] Remote ${streamType} stream for ${peerId} now has ${stream.getTracks().length} tracks:`,
                   stream.getTracks().map((t) => `${t.kind}(${t.readyState})`),
                 );
 
@@ -586,6 +611,27 @@ export function useWebRTC(
                     removed,
                     remainingPeers: Array.from(newMap.keys()),
                   });
+                  return newMap;
+                });
+                setStreamUpdateCounter((c) => c + 1);
+              } else if (message.type === "screen-share-started") {
+                console.log(
+                  `[WebRTC] 📺 Peer ${peerId} started screen sharing`,
+                );
+                // Mark peer as sharing screen
+                peersSharingScreenRef.current.add(peerId);
+                // Screen stream will be added via ontrack event
+                setStreamUpdateCounter((c) => c + 1);
+              } else if (message.type === "screen-share-stopped") {
+                console.log(
+                  `[WebRTC] 📺 Peer ${peerId} stopped screen sharing`,
+                );
+                // Mark peer as not sharing screen
+                peersSharingScreenRef.current.delete(peerId);
+                // Remove screen share stream
+                setRemoteScreenStreams((prev) => {
+                  const newMap = new Map(prev);
+                  newMap.delete(peerId);
                   return newMap;
                 });
                 setStreamUpdateCounter((c) => c + 1);
@@ -725,6 +771,27 @@ export function useWebRTC(
                       removed,
                       remainingPeers: Array.from(newMap.keys()),
                     });
+                    return newMap;
+                  });
+                  setStreamUpdateCounter((c) => c + 1);
+                } else if (message.type === "screen-share-started") {
+                  console.log(
+                    `[WebRTC] 📺 Peer ${peerId} started screen sharing`,
+                  );
+                  // Mark peer as sharing screen
+                  peersSharingScreenRef.current.add(peerId);
+                  // Screen stream will be added via ontrack event
+                  setStreamUpdateCounter((c) => c + 1);
+                } else if (message.type === "screen-share-stopped") {
+                  console.log(
+                    `[WebRTC] 📺 Peer ${peerId} stopped screen sharing`,
+                  );
+                  // Mark peer as not sharing screen
+                  peersSharingScreenRef.current.delete(peerId);
+                  // Remove screen share stream
+                  setRemoteScreenStreams((prev) => {
+                    const newMap = new Map(prev);
+                    newMap.delete(peerId);
                     return newMap;
                   });
                   setStreamUpdateCounter((c) => c + 1);
@@ -1135,11 +1202,86 @@ export function useWebRTC(
     });
   }, [localStream]);
 
+  // Update screen share tracks on existing peer connections when screenStream changes
+  useEffect(() => {
+    if (Object.keys(peersRef.current).length === 0) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    console.log(
+      "[WebRTC] Screen stream changed, updating tracks on existing peers",
+    );
+
+    Object.entries(peersRef.current).forEach(async ([peerId, pc]) => {
+      const senders = pc.getSenders();
+      const screenTracks = screenStream?.getTracks() || [];
+
+      // If screen stream exists, notify peers and add tracks
+      if (screenStream && screenTracks.length > 0) {
+        console.log(`[WebRTC] Adding screen share tracks for peer ${peerId}`);
+
+        // Notify peer that we're starting screen share
+        const dataChannel = dataChannelsRef.current.get(peerId);
+        if (dataChannel && dataChannel.readyState === "open") {
+          dataChannel.send(JSON.stringify({ type: "screen-share-started" }));
+        }
+
+        // Add screen tracks to peer connection
+        let needsRenegotiation = false;
+        for (const track of screenTracks) {
+          const existingSender = senders.find((s) => s.track?.id === track.id);
+          if (!existingSender && screenStream) {
+            console.log(
+              `[WebRTC] Adding screen ${track.kind} track to peer ${peerId}`,
+            );
+            pc.addTrack(track, screenStream);
+            needsRenegotiation = true;
+          }
+        }
+
+        if (needsRenegotiation) {
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            wsRef.current?.send(
+              JSON.stringify({
+                type: "call-offer",
+                data: { sdp: offer.sdp, type: offer.type },
+                clientId: peerId,
+              }),
+            );
+          } catch (error) {
+            console.error(
+              `[WebRTC] Failed to renegotiate screen share with ${peerId}:`,
+              error,
+            );
+          }
+        }
+      } else {
+        // Screen stream removed - notify peers and remove screen tracks
+        console.log(`[WebRTC] Removing screen share tracks for peer ${peerId}`);
+
+        const dataChannel = dataChannelsRef.current.get(peerId);
+        if (dataChannel && dataChannel.readyState === "open") {
+          dataChannel.send(JSON.stringify({ type: "screen-share-stopped" }));
+        }
+
+        // Remove screen share track senders
+        for (const sender of senders) {
+          if (sender.track && sender.track.contentHint === "detail") {
+            // Screen share tracks typically have contentHint "detail"
+            sender.replaceTrack(null);
+          }
+        }
+      }
+    });
+  }, [screenStream]);
+
   return {
     messages,
     connectedPeers: Object.keys(peersRef.current),
     sendMessage,
     remoteStreams,
+    remoteScreenStreams,
     streamUpdateCounter, // Force re-renders when tracks are added to streams
   };
 }

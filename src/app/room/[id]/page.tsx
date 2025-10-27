@@ -14,7 +14,20 @@ import { RoomHeader } from "@/components/room-header";
 import { RoomMembers } from "@/components/room-members";
 import { RoomChat } from "@/components/room-chat";
 import { Button } from "@/components/ui/button";
-import { Volume2, Music, Palette, Timer, Info } from "lucide-react";
+import {
+  Volume2,
+  Music,
+  Palette,
+  Timer,
+  Info,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  MonitorUp,
+  MonitorX,
+  Pencil,
+} from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 import { useSession } from "@/lib/auth-client";
 import { roomClient } from "@/api/client";
@@ -38,6 +51,16 @@ export default function RoomPage() {
   const [chatSendMessage, setChatSendMessage] = useState<
     (text: string) => void
   >(() => () => {});
+  const [meetingControls, setMeetingControls] = useState<{
+    isMicOn: boolean;
+    isVideoOn: boolean;
+    isScreenSharing: boolean;
+    mainContent: string;
+    toggleMic: () => void;
+    toggleVideo: () => void;
+    toggleScreenShare: () => void;
+    toggleWhiteboard: () => void;
+  } | null>(null);
   const previousMembersRef = useRef<string[]>([]);
   const joiningRef = useRef(false);
   const roomRef = useRef(room);
@@ -240,6 +263,10 @@ export default function RoomPage() {
     [],
   );
 
+  const handleControlsReady = useCallback((controls: any) => {
+    setMeetingControls(controls);
+  }, []);
+
   const handleUserJoined = useCallback(
     async (joinedUserId: string) => {
       console.log(`[RoomPage ${roomId}] User joined:`, joinedUserId);
@@ -377,6 +404,7 @@ export default function RoomPage() {
               currentUserName={currentUserName}
               roomId={roomId}
               onChatUpdate={handleChatUpdate}
+              onControlsReady={handleControlsReady}
               onUserLeft={handleUserLeft}
               onUserJoined={handleUserJoined}
             />
@@ -397,6 +425,76 @@ export default function RoomPage() {
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-60">
         <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-3 shadow-2xl">
           <div className="flex items-center gap-2">
+            {/* Meeting Controls */}
+            {meetingControls && (
+              <>
+                <Button
+                  onClick={meetingControls.toggleMic}
+                  className={`rounded-full w-12 h-12 p-0 ${
+                    !meetingControls.isMicOn
+                      ? "bg-destructive hover:bg-destructive/90"
+                      : "bg-primary hover:bg-primary/90"
+                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                  title={meetingControls.isMicOn ? "Mute" : "Unmute"}
+                >
+                  {meetingControls.isMicOn ? (
+                    <Mic className="w-5 h-5" />
+                  ) : (
+                    <MicOff className="w-5 h-5" />
+                  )}
+                </Button>
+                <Button
+                  onClick={meetingControls.toggleVideo}
+                  className={`rounded-full w-12 h-12 p-0 ${
+                    !meetingControls.isVideoOn
+                      ? "bg-destructive hover:bg-destructive/90"
+                      : "bg-primary hover:bg-primary/90"
+                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                  title={
+                    meetingControls.isVideoOn ? "Stop Camera" : "Start Camera"
+                  }
+                >
+                  {meetingControls.isVideoOn ? (
+                    <Video className="w-5 h-5" />
+                  ) : (
+                    <VideoOff className="w-5 h-5" />
+                  )}
+                </Button>
+                <Button
+                  onClick={meetingControls.toggleScreenShare}
+                  className={`rounded-full w-12 h-12 p-0 ${
+                    meetingControls.isScreenSharing
+                      ? "bg-accent hover:bg-accent/90"
+                      : "bg-secondary hover:bg-secondary/90"
+                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                  title={
+                    meetingControls.isScreenSharing
+                      ? "Stop Sharing"
+                      : "Share Screen"
+                  }
+                >
+                  {meetingControls.isScreenSharing ? (
+                    <MonitorX className="w-5 h-5" />
+                  ) : (
+                    <MonitorUp className="w-5 h-5" />
+                  )}
+                </Button>
+                <Button
+                  onClick={meetingControls.toggleWhiteboard}
+                  className={`rounded-full w-12 h-12 p-0 ${
+                    meetingControls.mainContent === "whiteboard"
+                      ? "bg-accent hover:bg-accent/90"
+                      : "bg-secondary hover:bg-secondary/90"
+                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                  title="Whiteboard"
+                >
+                  <Pencil className="w-5 h-5" />
+                </Button>
+                <div className="w-px h-8 bg-white/20" />
+              </>
+            )}
+
+            {/* Room Features */}
             <Button
               onClick={openSoundSelector}
               className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
