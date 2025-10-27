@@ -437,9 +437,10 @@ export function MeetingWorkspace({
                   const hasRemoteVideo = remoteStream
                     ? (() => {
                         const videoTracks = remoteStream.getVideoTracks();
-                        // Check if stream has any video tracks that are live and enabled
+                        // Check if stream has any video tracks that are live, enabled, and NOT muted
                         const hasLiveTrack = videoTracks.some(
-                          (t) => t.readyState === "live" && t.enabled,
+                          (t) =>
+                            t.readyState === "live" && t.enabled && !t.muted,
                         );
                         // Also check if stream is active (has at least one track that's not ended)
                         const isStreamActive = remoteStream.active;

@@ -155,6 +155,131 @@ export function useWebRTC(
               readyState: event.track.readyState,
               enabled: event.track.enabled,
             });
+
+            // Add stream now that track is unmuted
+            setRemoteStreams((prev) => {
+              const newMap = new Map(prev);
+              let stream = newMap.get(peerId);
+
+              // If peer sent us a stream, use it
+              if (event.streams && event.streams[0]) {
+                const peerStream = event.streams[0];
+                console.log(
+                  `[WebRTC] Adding stream for ${peerId} after unmute with ${peerStream.getTracks().length} tracks:`,
+                  peerStream
+                    .getTracks()
+                    .map((t) => `${t.kind}(${t.readyState})`),
+                );
+                newMap.set(peerId, peerStream);
+              } else {
+                // Fallback: create our own stream and add the track
+                if (!stream) {
+                  stream = new MediaStream();
+                  console.log(
+                    `[WebRTC] Creating new remote stream for ${peerId} after unmute`,
+                  );
+                }
+
+                if (!stream.getTrackById(event.track.id)) {
+                  stream.addTrack(event.track);
+                  console.log(
+                    `[WebRTC] ✅ Added ${event.track.kind} track to remote stream for ${peerId}`,
+                  );
+                }
+
+                newMap.set(peerId, stream);
+              }
+
+              return newMap;
+            });
+
+            // Start stats monitoring now that track is unmuted
+            if (!statsInterval && event.track.kind === "video") {
+              console.log(
+                `[WebRTC] Starting stats monitoring for ${peerId} after unmute`,
+              );
+              statsInterval = setInterval(async () => {
+                if (event.track.readyState === "ended") {
+                  if (statsInterval) clearInterval(statsInterval);
+                  return;
+                }
+
+                // If track becomes muted again, stop monitoring
+                if (event.track.muted) {
+                  console.log(
+                    `[WebRTC] Track is now muted for ${peerId}, stopping stats monitoring`,
+                  );
+                  if (statsInterval) clearInterval(statsInterval);
+                  return;
+                }
+
+                const stats = await pc.getStats();
+                let foundInboundRtp = false;
+                let currentFramesReceived = 0;
+
+                stats.forEach((report) => {
+                  if (
+                    report.type === "inbound-rtp" &&
+                    report.kind === "video"
+                  ) {
+                    foundInboundRtp = true;
+                    currentFramesReceived = report.framesReceived || 0;
+
+                    console.log(`[WebRTC] Video stats for ${peerId}:`, {
+                      bytesReceived: report.bytesReceived,
+                      framesReceived: report.framesReceived,
+                      framesDecoded: report.framesDecoded,
+                      framesDropped: report.framesDropped,
+                      trackMuted: event.track.muted,
+                      trackEnabled: event.track.enabled,
+                      trackReadyState: event.track.readyState,
+                    });
+
+                    // Check if frames have stopped being received
+                    if (
+                      currentFramesReceived === lastFramesReceived &&
+                      currentFramesReceived > 0
+                    ) {
+                      noDataCounter++;
+                      console.warn(
+                        `[WebRTC] No new frames for ${peerId} (${noDataCounter * 2}s)`,
+                      );
+
+                      if (noDataCounter >= 2) {
+                        console.log(
+                          `[WebRTC] Stream appears dead for ${peerId}, removing...`,
+                        );
+                        if (statsInterval) clearInterval(statsInterval);
+
+                        setRemoteStreams((prev) => {
+                          const newMap = new Map(prev);
+                          newMap.delete(peerId);
+                          return newMap;
+                        });
+                        setStreamUpdateCounter((c) => c + 1);
+                      }
+                    } else {
+                      noDataCounter = 0;
+                    }
+
+                    lastFramesReceived = currentFramesReceived;
+                  }
+                });
+
+                if (!foundInboundRtp) {
+                  console.warn(
+                    `[WebRTC] No inbound-rtp video stats found for ${peerId}`,
+                    {
+                      totalReports: stats.size,
+                      trackMuted: event.track.muted,
+                      trackReadyState: event.track.readyState,
+                      trackId: event.track.id,
+                    },
+                  );
+                }
+              }, 2000);
+            }
+
             // Trigger stream update to re-render components
             setStreamUpdateCounter((c) => c + 1);
           });
@@ -175,6 +300,18 @@ export function useWebRTC(
                   framesReceived: report.framesReceived,
                 });
               }
+            });
+
+            // Remove stream when track becomes muted (camera turned off)
+            setRemoteStreams((prev) => {
+              const newMap = new Map(prev);
+              const removed = newMap.delete(peerId);
+              if (removed) {
+                console.log(
+                  `[WebRTC] Removed stream for ${peerId} due to muted track`,
+                );
+              }
+              return newMap;
             });
 
             setStreamUpdateCounter((c) => c + 1);
@@ -209,154 +346,178 @@ export function useWebRTC(
             });
           });
 
-          // Log track stats continuously to monitor byte flow
+          // Log track stats continuously to monitor byte flow (only if track is not initially muted)
           let lastFramesReceived = 0;
           let noDataCounter = 0;
+          let statsInterval: NodeJS.Timeout | null = null;
 
-          const statsInterval = setInterval(async () => {
-            if (event.track.readyState === "ended") {
-              clearInterval(statsInterval);
-              return;
-            }
+          // Only start stats monitoring if track is not muted (has actual media)
+          if (!event.track.muted) {
+            statsInterval = setInterval(async () => {
+              if (event.track.readyState === "ended") {
+                if (statsInterval) clearInterval(statsInterval);
+                return;
+              }
 
-            // Get ALL stats from peer connection (not just track stats)
-            const stats = await pc.getStats();
-            let foundInboundRtp = false;
-            const allReportTypes: string[] = [];
-            const receivers: any[] = [];
-            let currentFramesReceived = 0;
+              // If track becomes muted, stop monitoring
+              if (event.track.muted) {
+                console.log(
+                  `[WebRTC] Track is now muted for ${peerId}, stopping stats monitoring`,
+                );
+                if (statsInterval) clearInterval(statsInterval);
+                return;
+              }
 
-            stats.forEach((report) => {
-              allReportTypes.push(report.type);
+              // Get ALL stats from peer connection (not just track stats)
+              const stats = await pc.getStats();
+              let foundInboundRtp = false;
+              const allReportTypes: string[] = [];
+              const receivers: any[] = [];
+              let currentFramesReceived = 0;
 
-              // Log receiver information
-              if (report.type === "inbound-rtp" && report.kind === "video") {
-                foundInboundRtp = true;
-                currentFramesReceived = report.framesReceived || 0;
+              stats.forEach((report) => {
+                allReportTypes.push(report.type);
 
-                console.log(`[WebRTC] Video stats for ${peerId}:`, {
-                  bytesReceived: report.bytesReceived,
-                  framesReceived: report.framesReceived,
-                  framesDecoded: report.framesDecoded,
-                  framesDropped: report.framesDropped,
-                  trackMuted: event.track.muted,
-                  trackEnabled: event.track.enabled,
-                  trackReadyState: event.track.readyState,
-                });
+                // Log receiver information
+                if (report.type === "inbound-rtp" && report.kind === "video") {
+                  foundInboundRtp = true;
+                  currentFramesReceived = report.framesReceived || 0;
 
-                // Check if frames have stopped being received
-                if (
-                  currentFramesReceived === lastFramesReceived &&
-                  currentFramesReceived > 0
-                ) {
-                  noDataCounter++;
-                  console.warn(
-                    `[WebRTC] No new frames for ${peerId} (${noDataCounter * 2}s)`,
-                  );
+                  console.log(`[WebRTC] Video stats for ${peerId}:`, {
+                    bytesReceived: report.bytesReceived,
+                    framesReceived: report.framesReceived,
+                    framesDecoded: report.framesDecoded,
+                    framesDropped: report.framesDropped,
+                    trackMuted: event.track.muted,
+                    trackEnabled: event.track.enabled,
+                    trackReadyState: event.track.readyState,
+                  });
 
-                  // If no new frames for 4 seconds, consider stream dead (fallback if data channel signal fails)
-                  if (noDataCounter >= 2) {
-                    console.log(
-                      `[WebRTC] Stream appears dead for ${peerId}, removing...`,
+                  // Check if frames have stopped being received
+                  if (
+                    currentFramesReceived === lastFramesReceived &&
+                    currentFramesReceived > 0
+                  ) {
+                    noDataCounter++;
+                    console.warn(
+                      `[WebRTC] No new frames for ${peerId} (${noDataCounter * 2}s)`,
                     );
-                    clearInterval(statsInterval);
 
-                    // Remove the stream
-                    setRemoteStreams((prev) => {
-                      const newMap = new Map(prev);
-                      newMap.delete(peerId);
-                      return newMap;
-                    });
-                    setStreamUpdateCounter((c) => c + 1);
+                    // If no new frames for 4 seconds, consider stream dead (fallback if data channel signal fails)
+                    if (noDataCounter >= 2) {
+                      console.log(
+                        `[WebRTC] Stream appears dead for ${peerId}, removing...`,
+                      );
+                      if (statsInterval) clearInterval(statsInterval);
+
+                      // Remove the stream
+                      setRemoteStreams((prev) => {
+                        const newMap = new Map(prev);
+                        newMap.delete(peerId);
+                        return newMap;
+                      });
+                      setStreamUpdateCounter((c) => c + 1);
+                    }
+                  } else {
+                    noDataCounter = 0;
                   }
-                } else {
-                  noDataCounter = 0;
+
+                  lastFramesReceived = currentFramesReceived;
                 }
 
-                lastFramesReceived = currentFramesReceived;
+                // Collect receiver info
+                if (report.type === "track" && report.kind === "video") {
+                  receivers.push({
+                    trackIdentifier: report.trackIdentifier,
+                    remoteSource: report.remoteSource,
+                    ended: report.ended,
+                    framesReceived: report.framesReceived,
+                  });
+                }
+              });
+
+              if (!foundInboundRtp) {
+                console.warn(
+                  `[WebRTC] No inbound-rtp video stats found for ${peerId}`,
+                  {
+                    totalReports: stats.size,
+                    reportTypes: Array.from(new Set(allReportTypes)),
+                    receivers: receivers,
+                    trackMuted: event.track.muted,
+                    trackReadyState: event.track.readyState,
+                    trackId: event.track.id,
+                  },
+                );
+              }
+            }, 2000);
+          } else {
+            console.log(
+              `[WebRTC] Track is muted for ${peerId}, skipping stats monitoring`,
+            );
+          }
+
+          // Only add stream if track is not muted (has actual media)
+          if (!event.track.muted) {
+            setRemoteStreams((prev) => {
+              const newMap = new Map(prev);
+              let stream = newMap.get(peerId);
+
+              // If peer sent us a stream, use it
+              if (event.streams && event.streams[0]) {
+                const peerStream = event.streams[0];
+
+                // Check if this is a different stream than what we had before
+                const previousStream = streamRefs.get(peerId);
+                if (!previousStream || previousStream !== peerStream) {
+                  console.log(
+                    `[WebRTC] New stream from ${peerId} with ${peerStream.getTracks().length} tracks:`,
+                    peerStream
+                      .getTracks()
+                      .map((t) => `${t.kind}(${t.readyState})`),
+                  );
+                  streamRefs.set(peerId, peerStream);
+                  newMap.set(peerId, peerStream);
+                } else {
+                  console.log(
+                    `[WebRTC] Track added to existing stream for ${peerId}, total tracks: ${peerStream.getTracks().length}`,
+                  );
+                  // Stream is the same, but trigger React update anyway
+                  newMap.set(peerId, peerStream);
+                }
+              } else {
+                // Fallback: create our own stream and add the track
+                if (!stream) {
+                  stream = new MediaStream();
+                  console.log(
+                    `[WebRTC] Creating new remote stream for ${peerId}`,
+                  );
+                }
+
+                if (!stream.getTrackById(event.track.id)) {
+                  stream.addTrack(event.track);
+                  console.log(
+                    `[WebRTC] ✅ Added ${event.track.kind} track to remote stream for ${peerId}`,
+                  );
+                }
+
+                console.log(
+                  `[WebRTC] Remote stream for ${peerId} now has ${stream.getTracks().length} tracks:`,
+                  stream.getTracks().map((t) => `${t.kind}(${t.readyState})`),
+                );
+
+                newMap.set(peerId, stream);
               }
 
-              // Collect receiver info
-              if (report.type === "track" && report.kind === "video") {
-                receivers.push({
-                  trackIdentifier: report.trackIdentifier,
-                  remoteSource: report.remoteSource,
-                  ended: report.ended,
-                  framesReceived: report.framesReceived,
-                });
-              }
+              return newMap;
             });
 
-            if (!foundInboundRtp) {
-              console.warn(
-                `[WebRTC] No inbound-rtp video stats found for ${peerId}`,
-                {
-                  totalReports: stats.size,
-                  reportTypes: Array.from(new Set(allReportTypes)),
-                  receivers: receivers,
-                  trackMuted: event.track.muted,
-                  trackReadyState: event.track.readyState,
-                  trackId: event.track.id,
-                },
-              );
-            }
-          }, 2000);
-
-          setRemoteStreams((prev) => {
-            const newMap = new Map(prev);
-            let stream = newMap.get(peerId);
-
-            // If peer sent us a stream, use it
-            if (event.streams && event.streams[0]) {
-              const peerStream = event.streams[0];
-
-              // Check if this is a different stream than what we had before
-              const previousStream = streamRefs.get(peerId);
-              if (!previousStream || previousStream !== peerStream) {
-                console.log(
-                  `[WebRTC] New stream from ${peerId} with ${peerStream.getTracks().length} tracks:`,
-                  peerStream
-                    .getTracks()
-                    .map((t) => `${t.kind}(${t.readyState})`),
-                );
-                streamRefs.set(peerId, peerStream);
-                newMap.set(peerId, peerStream);
-              } else {
-                console.log(
-                  `[WebRTC] Track added to existing stream for ${peerId}, total tracks: ${peerStream.getTracks().length}`,
-                );
-                // Stream is the same, but trigger React update anyway
-                newMap.set(peerId, peerStream);
-              }
-            } else {
-              // Fallback: create our own stream and add the track
-              if (!stream) {
-                stream = new MediaStream();
-                console.log(
-                  `[WebRTC] Creating new remote stream for ${peerId}`,
-                );
-              }
-
-              if (!stream.getTrackById(event.track.id)) {
-                stream.addTrack(event.track);
-                console.log(
-                  `[WebRTC] ✅ Added ${event.track.kind} track to remote stream for ${peerId}`,
-                );
-              }
-
-              console.log(
-                `[WebRTC] Remote stream for ${peerId} now has ${stream.getTracks().length} tracks:`,
-                stream.getTracks().map((t) => `${t.kind}(${t.readyState})`),
-              );
-
-              newMap.set(peerId, stream);
-            }
-
-            return newMap;
-          });
-
-          // Force React update even if stream object is the same
-          setStreamUpdateCounter((c) => c + 1);
+            // Force React update even if stream object is the same
+            setStreamUpdateCounter((c) => c + 1);
+          } else {
+            console.log(
+              `[WebRTC] Track is muted for ${peerId}, not adding to remoteStreams (waiting for unmute)`,
+            );
+          }
         };
 
         // Handle connection state
