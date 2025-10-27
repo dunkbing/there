@@ -4,7 +4,7 @@ import { rooms } from "./rooms";
 
 export const roomSettings = pgTable("room_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
-  roomId: uuid("room_id")
+  roomId: text("room_id")
     .notNull()
     .references(() => rooms.id, { onDelete: "cascade" }),
   pomodoroWorkDuration: integer("pomodoro_work_duration").default(25),

@@ -5,7 +5,7 @@ import { roomMembers, RoomMemberWithRelations } from "./room-members";
 import { roomSettings } from "./room-settings";
 
 export const rooms = pgTable("rooms", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
   createdBy: uuid("created_by").references(() => users.id),

@@ -39,7 +39,7 @@ export default function Home() {
       <div className="container mx-auto px-4 py-12 relative z-10">
         {/* Hero Section */}
         <div className="mb-16 text-center">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent mb-3">
+          <h1 className="text-5xl font-bold bg-linear-to-r from-primary via-accent to-secondary bg-clip-text text-transparent mb-3">
             Focus Together
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">

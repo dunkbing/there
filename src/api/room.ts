@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { rooms, roomMembers, roomSettings } from "@/lib/schemas";
 import { getSessionFromContext } from "@/lib/session";
 import { eq, and } from "drizzle-orm";
+import { generateRoomId, generateRoomName } from "@/lib/room-generator";
 
 export const roomRoute = new Hono()
   // GET /api/rooms - Get user's rooms
@@ -33,8 +34,22 @@ export const roomRoute = new Hono()
       const session = await getSessionFromContext(c);
       const { name, description, isPublic } = await c.req.json();
 
-      if (!name) {
-        return c.json({ error: "Room name is required" }, 400);
+      // Generate room name if not provided
+      const roomName = name && name.trim() ? name : generateRoomName();
+
+      // Generate a unique room ID
+      let roomId = generateRoomId();
+
+      // Check for collision and regenerate if needed
+      let existingRoom = await db.query.rooms.findFirst({
+        where: eq(rooms.id, roomId),
+      });
+
+      while (existingRoom) {
+        roomId = generateRoomId();
+        existingRoom = await db.query.rooms.findFirst({
+          where: eq(rooms.id, roomId),
+        });
       }
 
       let userId: string | null = null;
@@ -42,11 +57,13 @@ export const roomRoute = new Hono()
       if (session?.user) {
         userId = session.user.id;
       }
+
       // Create room
       const newRoom = await db
         .insert(rooms)
         .values({
-          name,
+          id: roomId,
+          name: roomName,
           description: description || null,
           createdBy: userId,
           public: isPublic ?? true,

@@ -5,7 +5,7 @@ import { SelectUser, users } from "./users";
 
 export const roomMembers = pgTable("room_members", {
   id: uuid("id").primaryKey().defaultRandom(),
-  roomId: uuid("room_id")
+  roomId: text("room_id")
     .notNull()
     .references(() => rooms.id, { onDelete: "cascade" }),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),

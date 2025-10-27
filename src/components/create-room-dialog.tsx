@@ -20,8 +20,6 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
   const router = useRouter();
 
   const handleCreate = async () => {
-    if (!name.trim()) return;
-
     setLoading(true);
     try {
       const response = await roomClient.rooms.$post({
@@ -61,9 +59,11 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
 
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium mb-2 block">Room Name</label>
+            <label className="text-sm font-medium mb-2 block">
+              Room Name (optional)
+            </label>
             <Input
-              placeholder="Enter room name"
+              placeholder="Leave empty to auto-generate a cool name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="bg-white/10 border-white/20 focus:border-primary"
@@ -100,7 +100,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
 
           <Button
             onClick={handleCreate}
-            disabled={!name.trim() || loading}
+            disabled={loading}
             className="w-full bg-primary hover:bg-primary/90"
           >
             {loading ? "Creating..." : "Create Room"}
