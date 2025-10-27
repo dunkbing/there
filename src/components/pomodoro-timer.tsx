@@ -130,13 +130,13 @@ export function PomodoroTimer() {
 
   return (
     <div className="space-y-6">
-      <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl bg-linear-to-br from-primary/15 via-accent/10 to-secondary/15 border-white/30 shadow-2xl shadow-primary/20 p-12">
+      <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl bg-linear-to-br from-primary/15 via-accent/10 to-secondary/15 shadow-2xl shadow-primary/20 p-12">
         <div className="text-center">
           <div className="mb-8">
             <p className="text-lg font-semibold text-primary mb-3">
               {isWorkSession ? "🎯 Focus Time" : "☕ Break Time"}
             </p>
-            <div className="text-8xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent font-mono tracking-tight">
+            <div className="text-8xl font-bold bg-linear-to-r from-primary to-accent bg-clip-text text-transparent font-mono tracking-tight">
               {formatTime(timeLeft)}
             </div>
           </div>
@@ -149,7 +149,7 @@ export function PomodoroTimer() {
                   key={i}
                   className={`h-3 w-10 rounded-full transition-all duration-300 ease-out ${
                     i < sessionsCompleted % 4
-                      ? "bg-gradient-to-r from-primary to-accent shadow-lg shadow-primary/50"
+                      ? "bg-linear-to-r from-primary to-accent shadow-lg shadow-primary/50"
                       : "bg-white/20 dark:bg-white/10"
                   }`}
                 />
@@ -165,7 +165,7 @@ export function PomodoroTimer() {
             <Button
               onClick={() => setIsRunning(!isRunning)}
               size="lg"
-              className="bg-gradient-to-r from-primary to-accent hover:shadow-lg hover:shadow-primary/50 text-primary-foreground rounded-full w-20 h-20 p-0 transition-all duration-300 ease-out shadow-lg shadow-primary/20"
+              className="bg-linear-to-r from-primary to-accent hover:shadow-lg hover:shadow-primary/50 text-primary-foreground rounded-full w-20 h-20 p-0 transition-all duration-300 ease-out shadow-lg shadow-primary/20"
             >
               {isRunning ? (
                 <Pause className="w-8 h-8" />
@@ -177,7 +177,7 @@ export function PomodoroTimer() {
               onClick={handleReset}
               variant="outline"
               size="lg"
-              className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full w-20 h-20 p-0 transition-all duration-300 ease-out hover:bg-white/20 dark:hover:bg-white/10 bg-transparent"
+              className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full w-20 h-20 p-0 transition-all duration-300 ease-out hover:bg-white/20 dark:hover:bg-white/10"
             >
               <RotateCcw className="w-6 h-6" />
             </Button>
@@ -195,7 +195,7 @@ export function PomodoroTimer() {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl bg-white/50 dark:bg-white/5 border-white/30 p-8">
+        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border dark:border-white/10 rounded-2xl border-white/30 p-8">
           <h3 className="text-xl font-bold mb-6">Timer Settings</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>

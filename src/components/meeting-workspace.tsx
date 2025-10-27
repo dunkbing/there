@@ -15,6 +15,7 @@ interface MeetingWorkspaceProps {
   roomId: string;
   onChatUpdate?: (messages: any[], sendMessage: (text: string) => void) => void;
   onUserLeft?: (userId: string) => void;
+  onUserJoined?: (userId: string) => void;
 }
 
 export function MeetingWorkspace({
@@ -24,6 +25,7 @@ export function MeetingWorkspace({
   roomId,
   onChatUpdate,
   onUserLeft,
+  onUserJoined,
 }: MeetingWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<"video" | "whiteboard">("video");
   const [isMicOn, setIsMicOn] = useState(false);
@@ -37,7 +39,14 @@ export function MeetingWorkspace({
 
   // Initialize WebRTC for chat and video
   const { messages, sendMessage, remoteStreams, streamUpdateCounter } =
-    useWebRTC(roomId, currentUserId, currentUserName, localStream, onUserLeft);
+    useWebRTC(
+      roomId,
+      currentUserId,
+      currentUserName,
+      localStream,
+      onUserLeft,
+      onUserJoined,
+    );
 
   // Expose chat data to parent component
   useEffect(() => {
@@ -58,7 +67,10 @@ export function MeetingWorkspace({
     console.log(
       `[Component] Updating remote streams, count: ${remoteStreams.size}, update: ${streamUpdateCounter}`,
     );
-    console.log(`[Component] Remote stream peer IDs:`, Array.from(remoteStreams.keys()));
+    console.log(
+      `[Component] Remote stream peer IDs:`,
+      Array.from(remoteStreams.keys()),
+    );
 
     // Listen to track events to trigger re-renders when tracks change state
     const trackEventHandlers = new Map<MediaStreamTrack, () => void>();
@@ -73,12 +85,12 @@ export function MeetingWorkspace({
             enabled: track.enabled,
           });
           // Force re-render by updating counter
-          setTrackStateCounter(c => c + 1);
+          setTrackStateCounter((c) => c + 1);
         };
 
-        track.addEventListener('ended', handler);
-        track.addEventListener('mute', handler);
-        track.addEventListener('unmute', handler);
+        track.addEventListener("ended", handler);
+        track.addEventListener("mute", handler);
+        track.addEventListener("unmute", handler);
         trackEventHandlers.set(track, handler);
       });
     });
@@ -86,9 +98,9 @@ export function MeetingWorkspace({
     // Cleanup function to remove listeners
     const cleanup = () => {
       trackEventHandlers.forEach((handler, track) => {
-        track.removeEventListener('ended', handler);
-        track.removeEventListener('mute', handler);
-        track.removeEventListener('unmute', handler);
+        track.removeEventListener("ended", handler);
+        track.removeEventListener("mute", handler);
+        track.removeEventListener("unmute", handler);
       });
       trackEventHandlers.clear();
     };
@@ -101,7 +113,8 @@ export function MeetingWorkspace({
         hasTracks: tracks.length > 0,
         tracks: tracks.map((t) => `${t.kind}(${t.readyState})`),
         hasVideoElement: !!videoElement,
-        currentSrcObject: videoElement?.srcObject === stream ? 'same' : 'different',
+        currentSrcObject:
+          videoElement?.srcObject === stream ? "same" : "different",
         videoElementReadyState: videoElement?.readyState,
         videoElementPaused: videoElement?.paused,
         videoTrackSettings: videoTrack?.getSettings(),
@@ -128,12 +141,16 @@ export function MeetingWorkspace({
         };
 
         // Check if stream is inactive (all tracks ended)
-        const hasLiveTracks = stream.getVideoTracks().some(t => t.readyState === 'live');
+        const hasLiveTracks = stream
+          .getVideoTracks()
+          .some((t) => t.readyState === "live");
 
         if (!stream.active || !hasLiveTracks) {
           // Stream has no active tracks - clear the video element
           if (videoElement.srcObject) {
-            console.log(`[Component] Clearing srcObject for ${peerId} (stream inactive)`);
+            console.log(
+              `[Component] Clearing srcObject for ${peerId} (stream inactive)`,
+            );
             videoElement.srcObject = null;
           }
         } else if (videoElement.srcObject !== stream) {
@@ -141,61 +158,90 @@ export function MeetingWorkspace({
           console.log(`[Component] Setting srcObject for ${peerId}`, {
             streamId: stream.id,
             streamActive: stream.active,
-            tracks: stream.getTracks().map(t => ({
+            tracks: stream.getTracks().map((t) => ({
               kind: t.kind,
               id: t.id,
               readyState: t.readyState,
               enabled: t.enabled,
               muted: t.muted,
-            }))
+            })),
           });
           videoElement.srcObject = stream;
 
           // Wait for metadata to load, then play
           const onLoadedMetadata = () => {
-            console.log(`[Component] Metadata loaded for ${peerId}, playing video`);
-            videoElement.play().then(() => {
-              console.log(`[Component] ✅ Video playing for ${peerId}`, {
-                readyState: videoElement.readyState,
-                paused: videoElement.paused,
-                videoWidth: videoElement.videoWidth,
-                videoHeight: videoElement.videoHeight,
+            console.log(
+              `[Component] Metadata loaded for ${peerId}, playing video`,
+            );
+            videoElement
+              .play()
+              .then(() => {
+                console.log(`[Component] ✅ Video playing for ${peerId}`, {
+                  readyState: videoElement.readyState,
+                  paused: videoElement.paused,
+                  videoWidth: videoElement.videoWidth,
+                  videoHeight: videoElement.videoHeight,
+                });
+              })
+              .catch((e) => {
+                console.error(
+                  `[Component] Failed to play video for ${peerId}:`,
+                  e,
+                );
               });
-            }).catch((e) => {
-              console.error(`[Component] Failed to play video for ${peerId}:`, e);
-            });
           };
 
-          videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+          videoElement.addEventListener("loadedmetadata", onLoadedMetadata, {
+            once: true,
+          });
 
           // Also try to play immediately in case metadata is already loaded
           if (videoElement.readyState >= 1) {
-            console.log(`[Component] Metadata already loaded for ${peerId}, playing immediately`);
-            videoElement.play().then(() => {
-              console.log(`[Component] ✅ Video playing for ${peerId} (immediate)`, {
-                readyState: videoElement.readyState,
-                paused: videoElement.paused,
-                videoWidth: videoElement.videoWidth,
-                videoHeight: videoElement.videoHeight,
+            console.log(
+              `[Component] Metadata already loaded for ${peerId}, playing immediately`,
+            );
+            videoElement
+              .play()
+              .then(() => {
+                console.log(
+                  `[Component] ✅ Video playing for ${peerId} (immediate)`,
+                  {
+                    readyState: videoElement.readyState,
+                    paused: videoElement.paused,
+                    videoWidth: videoElement.videoWidth,
+                    videoHeight: videoElement.videoHeight,
+                  },
+                );
+              })
+              .catch((e) => {
+                console.error(
+                  `[Component] Failed to play video for ${peerId}:`,
+                  e,
+                );
               });
-            }).catch((e) => {
-              console.error(`[Component] Failed to play video for ${peerId}:`, e);
-            });
           }
         } else {
           // Even if srcObject is the same, ensure video is playing
           if (videoElement.paused) {
-            console.log(`[Component] Video paused, attempting to play for ${peerId}`);
-            videoElement.play().then(() => {
-              console.log(`[Component] ✅ Resumed video for ${peerId}`, {
-                readyState: videoElement.readyState,
-                paused: videoElement.paused,
-                videoWidth: videoElement.videoWidth,
-                videoHeight: videoElement.videoHeight,
+            console.log(
+              `[Component] Video paused, attempting to play for ${peerId}`,
+            );
+            videoElement
+              .play()
+              .then(() => {
+                console.log(`[Component] ✅ Resumed video for ${peerId}`, {
+                  readyState: videoElement.readyState,
+                  paused: videoElement.paused,
+                  videoWidth: videoElement.videoWidth,
+                  videoHeight: videoElement.videoHeight,
+                });
+              })
+              .catch((e) => {
+                console.error(
+                  `[Component] Failed to play video for ${peerId}:`,
+                  e,
+                );
               });
-            }).catch((e) => {
-              console.error(`[Component] Failed to play video for ${peerId}:`, e);
-            });
           }
         }
       }
@@ -233,7 +279,11 @@ export function MeetingWorkspace({
           });
           // If no tracks remain, set to null; otherwise create new stream
           const remainingTracks = localStream.getTracks();
-          setLocalStream(remainingTracks.length > 0 ? new MediaStream(remainingTracks) : null);
+          setLocalStream(
+            remainingTracks.length > 0
+              ? new MediaStream(remainingTracks)
+              : null,
+          );
         }
         setIsMicOn(false);
       } else {
@@ -247,7 +297,10 @@ export function MeetingWorkspace({
         if (audioTrack) {
           if (localStream) {
             // Add to existing stream
-            const newStream = new MediaStream([...localStream.getTracks(), audioTrack]);
+            const newStream = new MediaStream([
+              ...localStream.getTracks(),
+              audioTrack,
+            ]);
             setLocalStream(newStream);
           } else {
             // Create new stream
@@ -275,7 +328,11 @@ export function MeetingWorkspace({
           });
           // If no tracks remain, set to null; otherwise create new stream
           const remainingTracks = localStream.getTracks();
-          setLocalStream(remainingTracks.length > 0 ? new MediaStream(remainingTracks) : null);
+          setLocalStream(
+            remainingTracks.length > 0
+              ? new MediaStream(remainingTracks)
+              : null,
+          );
         }
         setIsVideoOn(false);
       } else {
@@ -289,7 +346,10 @@ export function MeetingWorkspace({
         if (videoTrack) {
           if (localStream) {
             // Add to existing stream
-            const newStream = new MediaStream([...localStream.getTracks(), videoTrack]);
+            const newStream = new MediaStream([
+              ...localStream.getTracks(),
+              videoTrack,
+            ]);
             setLocalStream(newStream);
           } else {
             // Create new stream
@@ -354,7 +414,11 @@ export function MeetingWorkspace({
               >
                 {members.map((member) => {
                   // For peer identification: use user.id for authenticated users, guestId for guests
-                  const peerId = member.user?.id || member.guestId || member.userId || member.id;
+                  const peerId =
+                    member.user?.id ||
+                    member.guestId ||
+                    member.userId ||
+                    member.id;
 
                   const isCurrentUser = peerId === currentUserId;
                   const memberName =
@@ -374,10 +438,16 @@ export function MeetingWorkspace({
                     ? (() => {
                         const videoTracks = remoteStream.getVideoTracks();
                         // Check if stream has any video tracks that are live and enabled
-                        const hasLiveTrack = videoTracks.some((t) => t.readyState === "live" && t.enabled);
+                        const hasLiveTrack = videoTracks.some(
+                          (t) => t.readyState === "live" && t.enabled,
+                        );
                         // Also check if stream is active (has at least one track that's not ended)
                         const isStreamActive = remoteStream.active;
-                        return hasLiveTrack && isStreamActive && videoTracks.length > 0;
+                        return (
+                          hasLiveTrack &&
+                          isStreamActive &&
+                          videoTracks.length > 0
+                        );
                       })()
                     : false;
 

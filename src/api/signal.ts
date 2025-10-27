@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { upgradeWebSocket } from "hono/bun";
 import type { WSContext } from "hono/ws";
+import { db } from "@/lib/db";
+import { roomMembers } from "@/lib/schemas";
+import { and, eq, or } from "drizzle-orm";
 
 interface RoomMember {
   userId: string;
@@ -11,49 +14,23 @@ interface RoomMember {
 // Track rooms and their members
 const rooms = new Map<string, Map<string, RoomMember>>();
 
-function broadcastToRoom(
-  roomId: string,
-  message: any,
-  excludeUserId?: string,
-) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-
-  const messageStr = JSON.stringify(message);
-  room.forEach((member, userId) => {
-    if (userId !== excludeUserId) {
-      try {
-        member.ws.send(messageStr);
-      } catch (error) {
-        console.error(`Failed to send to user ${userId}:`, error);
-      }
-    }
-  });
-}
-
-function sendToUser(roomId: string, userId: string, message: any) {
-  const room = rooms.get(roomId);
-  if (!room) {
-    console.error(`[WS sendToUser] Room ${roomId} not found`);
-    return;
-  }
-
-  const member = room.get(userId);
-  if (!member) {
-    console.error(`[WS sendToUser] User ${userId} not found in room ${roomId}. Available users:`, Array.from(room.keys()));
-    return;
-  }
-
+// Helper function to remove member from database
+async function removeMemberFromDatabase(roomId: string, userId: string) {
   try {
-    const wsState = member.ws.readyState;
-    if (wsState !== 1) { // 1 = OPEN
-      console.error(`[WS sendToUser] WebSocket to user ${userId} is not OPEN (state: ${wsState})`);
-      return;
-    }
-    member.ws.send(JSON.stringify(message));
-    console.log(`[WS sendToUser] ✅ Sent message to ${userId}`);
+    await db
+      .delete(roomMembers)
+      .where(
+        and(
+          eq(roomMembers.roomId, roomId),
+          or(eq(roomMembers.userId, userId), eq(roomMembers.guestId, userId)),
+        ),
+      );
+    console.log(`[DB] Removed member ${userId} from room ${roomId}`);
   } catch (error) {
-    console.error(`[WS sendToUser] ❌ Failed to send to user ${userId}:`, error);
+    console.error(
+      `[DB] Failed to remove member ${userId} from room ${roomId}:`,
+      error,
+    );
   }
 }
 
@@ -70,7 +47,7 @@ export const signalRoute = new Hono().get(
         console.log(`[WS] Client ${clientId} connected`);
       },
 
-      onMessage(event, ws) {
+      async onMessage(event, ws) {
         try {
           const message = JSON.parse(event.data.toString());
           const { type, ...data } = message;
@@ -87,7 +64,7 @@ export const signalRoute = new Hono().get(
             room.set(clientId, { userId: clientId, userName: clientId, ws });
             console.log(
               `[WS] ✅ Client ${clientId} registered in room ${roomId}. Room now has ${room.size} members:`,
-              Array.from(room.keys())
+              Array.from(room.keys()),
             );
           } else {
             // Update WebSocket reference if reconnecting
@@ -97,8 +74,54 @@ export const signalRoute = new Hono().get(
 
           switch (type) {
             case "join": {
+              // Check if user exists in database, if not add them (handles reconnection)
+              const existingMember = await db.query.roomMembers.findFirst({
+                where: and(
+                  eq(roomMembers.roomId, roomId),
+                  or(
+                    eq(roomMembers.userId, clientId),
+                    eq(roomMembers.guestId, clientId),
+                  ),
+                ),
+              });
+
+              if (!existingMember) {
+                console.log(
+                  `[WS] User ${clientId} not in database, re-adding (reconnection)...`,
+                );
+                // Try to determine if this is a guest or authenticated user
+                // We'll add as guest since we don't have session info here
+                await db.insert(roomMembers).values({
+                  roomId,
+                  guestId: clientId,
+                  guestName: "Guest",
+                  role: "member",
+                });
+                console.log(`[WS] Re-added user ${clientId} to room ${roomId}`);
+
+                // Notify all members to refetch since we re-added this user
+                room.forEach((member, memberId) => {
+                  if (member.ws.readyState !== 1) return;
+                  try {
+                    member.ws.send(
+                      JSON.stringify({
+                        type: "refetch-members",
+                        roomId: roomId,
+                      }),
+                    );
+                  } catch (e) {
+                    console.error(
+                      `[WS] Failed to send refetch-members to ${memberId}:`,
+                      e,
+                    );
+                  }
+                });
+              }
+
               // Notify others that this client joined
-              console.log(`[WS] Broadcasting join from ${clientId} to other ${room.size - 1} members`);
+              console.log(
+                `[WS] Broadcasting join from ${clientId} to other ${room.size - 1} members`,
+              );
               room.forEach((member, memberId) => {
                 if (memberId === clientId) return;
                 if (member.ws.readyState !== 1) return; // OPEN
@@ -126,12 +149,17 @@ export const signalRoute = new Hono().get(
               const targetMember = room.get(targetId);
 
               if (!targetMember) {
-                console.error(`[WS] Target ${targetId} not found in room. Available:`, Array.from(room.keys()));
+                console.error(
+                  `[WS] Target ${targetId} not found in room. Available:`,
+                  Array.from(room.keys()),
+                );
                 return;
               }
 
               if (targetMember.ws.readyState !== 1) {
-                console.error(`[WS] Target ${targetId} WebSocket not open (state: ${targetMember.ws.readyState})`);
+                console.error(
+                  `[WS] Target ${targetId} WebSocket not open (state: ${targetMember.ws.readyState})`,
+                );
                 return;
               }
 
@@ -143,9 +171,56 @@ export const signalRoute = new Hono().get(
                     clientId: clientId,
                   }),
                 );
-                console.log(`[WS] ✅ Forwarded ${type} from ${clientId} to ${targetId}`);
+                console.log(
+                  `[WS] ✅ Forwarded ${type} from ${clientId} to ${targetId}`,
+                );
               } catch (e) {
-                console.error(`[WS] ❌ Failed to forward ${type} to ${targetId}:`, e);
+                console.error(
+                  `[WS] ❌ Failed to forward ${type} to ${targetId}:`,
+                  e,
+                );
+              }
+              break;
+            }
+
+            case "disconnect": {
+              // Handle explicit disconnect message from client
+              console.log(`[WS] Received explicit disconnect from ${clientId}`);
+
+              // Remove client from database
+              await removeMemberFromDatabase(roomId, clientId);
+
+              // Remove client from in-memory room
+              room.delete(clientId);
+              console.log(
+                `[WS] Removed ${clientId} from room ${roomId}, ${room.size} members remaining`,
+              );
+
+              // Broadcast to all other members to refetch member list
+              room.forEach((member, memberId) => {
+                if (member.ws.readyState !== 1) return;
+                try {
+                  member.ws.send(
+                    JSON.stringify({
+                      type: "refetch-members",
+                      roomId: roomId,
+                    }),
+                  );
+                  console.log(
+                    `[WS] ✅ Sent refetch-members notification to ${memberId}`,
+                  );
+                } catch (e) {
+                  console.error(
+                    `[WS] Failed to send refetch-members to ${memberId}:`,
+                    e,
+                  );
+                }
+              });
+
+              // Clean up empty rooms
+              if (room.size === 0) {
+                rooms.delete(roomId);
+                console.log(`[WS] Deleted empty room ${roomId}`);
               }
               break;
             }
@@ -158,8 +233,11 @@ export const signalRoute = new Hono().get(
         }
       },
 
-      onClose: () => {
+      onClose: async () => {
         console.log(`[WS] Client ${clientId} disconnected from room ${roomId}`);
+
+        // Remove client from database
+        await removeMemberFromDatabase(roomId, clientId);
 
         const room = rooms.get(roomId);
         if (room) {
@@ -168,18 +246,24 @@ export const signalRoute = new Hono().get(
             `[WS] Removed ${clientId} from room ${roomId}, ${room.size} members remaining`,
           );
 
-          // Notify others that user left
+          // Notify others to refetch member list
           room.forEach((member, memberId) => {
             if (member.ws.readyState !== 1) return;
             try {
               member.ws.send(
                 JSON.stringify({
-                  type: "disconnect",
-                  clientId: clientId,
+                  type: "refetch-members",
+                  roomId: roomId,
                 }),
               );
+              console.log(
+                `[WS] ✅ Sent refetch-members notification to ${memberId}`,
+              );
             } catch (e) {
-              console.error(`[WS] Failed to send disconnect to ${memberId}:`, e);
+              console.error(
+                `[WS] Failed to send refetch-members to ${memberId}:`,
+                e,
+              );
             }
           });
 

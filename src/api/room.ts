@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { rooms, roomMembers, roomSettings } from "@/lib/schemas";
 import { getSessionFromContext } from "@/lib/session";
@@ -199,7 +200,6 @@ export const roomRoute = new Hono()
         return c.json({ success: true, guestId });
       } else {
         // Anonymous user without guest ID (new guest) - generate one
-        const { randomUUID } = await import("crypto");
         const newGuestId = randomUUID();
 
         await db.insert(roomMembers).values({
@@ -245,7 +245,10 @@ export const roomRoute = new Hono()
         await db
           .delete(roomMembers)
           .where(
-            and(eq(roomMembers.roomId, roomId), eq(roomMembers.guestId, guestId)),
+            and(
+              eq(roomMembers.roomId, roomId),
+              eq(roomMembers.guestId, guestId),
+            ),
           );
       }
 

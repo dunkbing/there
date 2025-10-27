@@ -144,28 +144,6 @@ export default function RoomPage() {
     }
   }, [room]);
 
-  // Poll for room updates as a fallback (WebSocket handles real-time updates)
-  useEffect(() => {
-    if (!room || !hasJoinedRoom) return;
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await roomClient.rooms[":id"].$get({
-          param: { id: roomId },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setRoom(data);
-          previousMembersRef.current = data.members.map((m: any) => m.id);
-        }
-      } catch (error) {
-        console.error("Failed to poll room data:", error);
-      }
-    }, 30000); // Reduced frequency since WebSocket handles real-time updates
-
-    return () => clearInterval(pollInterval);
-  }, [room, hasJoinedRoom, roomId]);
-
   const leaveRoom = async () => {
     try {
       const guestId = localStorage.getItem(`guestId_${roomId}`);
@@ -199,10 +177,10 @@ export default function RoomPage() {
         const result = await response.json();
 
         // Store and update guest ID
-        if (result.guestId) {
-          localStorage.setItem(`guestId_${roomId}`, result.guestId);
+        if ("guestId" in result) {
+          localStorage.setItem(`guestId_${roomId}`, result.guestId as string);
           // Update current user ID with the guestId (new or existing)
-          setCurrentUserId(result.guestId);
+          setCurrentUserId(result.guestId as string);
         }
 
         setHasJoinedRoom(true);
@@ -254,42 +232,84 @@ export default function RoomPage() {
     joinRoom(username);
   };
 
-  const handleChatUpdate = useCallback((messages: any[], sendMessage: (text: string) => void) => {
-    setChatMessages(messages);
-    setChatSendMessage(() => sendMessage);
-  }, []);
+  const handleChatUpdate = useCallback(
+    (messages: any[], sendMessage: (text: string) => void) => {
+      setChatMessages(messages);
+      setChatSendMessage(() => sendMessage);
+    },
+    [],
+  );
 
-  const handleUserLeft = useCallback((leftUserId: string) => {
-    // Find the member who left using the ref to avoid dependency
-    const leftMember = roomRef.current?.members?.find(
-      (m) =>
-        m.user?.id === leftUserId ||
-        m.userId === leftUserId ||
-        m.id === leftUserId,
-    );
-    if (leftMember) {
-      const memberName =
-        leftMember.user?.name ||
-        leftMember.guestName ||
-        "A user";
-      toast.info(`${memberName} left the room`);
-    }
+  const handleUserJoined = useCallback(
+    async (joinedUserId: string) => {
+      console.log(`[RoomPage ${roomId}] User joined:`, joinedUserId);
 
-    // Refresh room data to update member list
-    roomClient.rooms[":id"]
-      .$get({
+      // Refresh room data to update member list
+      const response = await roomClient.rooms[":id"].$get({
         param: { id: roomId },
-      })
-      .then((response) => {
-        if (response.ok) {
-          response.json().then((data) => {
-            setRoom(data);
-            previousMembersRef.current =
-              data.members?.map((m: any) => m.id) || [];
-          });
-        }
       });
-  }, [roomId]);
+
+      if (response.ok) {
+        response.json().then((data) => {
+          setRoom(data);
+          previousMembersRef.current =
+            data.members?.map((m: any) => m.id) || [];
+
+          // Find the new member and show toast
+          const newMember = data.members?.find(
+            (m: any) =>
+              m.user?.id === joinedUserId ||
+              m.userId === joinedUserId ||
+              m.guestId === joinedUserId ||
+              m.id === joinedUserId,
+          );
+          if (newMember) {
+            const memberName =
+              newMember.user?.name || newMember.guestName || "A user";
+            toast.success(`${memberName} joined the room`);
+          }
+        });
+      }
+    },
+    [roomId],
+  );
+
+  const handleUserLeft = useCallback(
+    (leftUserId: string) => {
+      // If leftUserId is empty, it means we should just refetch without showing toast
+      if (leftUserId) {
+        // Find the member who left using the ref to avoid dependency
+        const leftMember = roomRef.current?.members?.find(
+          (m) =>
+            m.user?.id === leftUserId ||
+            m.userId === leftUserId ||
+            m.guestId === leftUserId ||
+            m.id === leftUserId,
+        );
+        if (leftMember) {
+          const memberName =
+            leftMember.user?.name || leftMember.guestName || "A user";
+          toast.info(`${memberName} left the room`);
+        }
+      }
+
+      // Refresh room data to update member list
+      roomClient.rooms[":id"]
+        .$get({
+          param: { id: roomId },
+        })
+        .then((response) => {
+          if (response.ok) {
+            response.json().then((data) => {
+              setRoom(data);
+              previousMembersRef.current =
+                data.members?.map((m: any) => m.id) || [];
+            });
+          }
+        });
+    },
+    [roomId],
+  );
 
   // Handle disconnect when user leaves the room
   useEffect(() => {
@@ -358,6 +378,7 @@ export default function RoomPage() {
               roomId={roomId}
               onChatUpdate={handleChatUpdate}
               onUserLeft={handleUserLeft}
+              onUserJoined={handleUserJoined}
             />
           </div>
 

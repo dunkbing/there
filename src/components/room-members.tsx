@@ -18,7 +18,8 @@ export function RoomMembers({ members, currentUserId }: RoomMembersProps) {
 
       <div className="space-y-3">
         {members.map((member) => {
-          const peerId = member.user?.id || member.guestId || member.userId || member.id;
+          const peerId =
+            member.user?.id || member.guestId || member.userId || member.id;
           const isCurrentUser = peerId === currentUserId;
 
           return (
