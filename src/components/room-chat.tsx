@@ -36,7 +36,7 @@ export function RoomChat({
   }, [chatInput, onSendMessage]);
 
   return (
-    <Card className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-4 flex flex-col h-[500px]">
+    <Card className="backdrop-blur-xl border bg-white rounded-2xl p-4 flex flex-col h-[500px]">
       <h3 className="text-lg font-semibold mb-4 text-foreground">Chat</h3>
 
       {/* Messages */}
@@ -78,7 +78,7 @@ export function RoomChat({
         />
         <Button
           onClick={sendMessage}
-          size="sm"
+          size={"icon"}
           className="bg-primary hover:bg-primary/90"
         >
           <Send className="w-4 h-4" />
