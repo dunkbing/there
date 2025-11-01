@@ -10,19 +10,7 @@ interface RoomMembersProps {
 
 export function RoomMembers({ members, currentUserId }: RoomMembersProps) {
   return (
-    <div className="backdrop-blur-xl border bg-white rounded-2xl p-6 sticky top-24">
-      <div className="flex items-center gap-2 mb-4">
-        <div className=" h-10  grid place-content-center w-10 drop-shadow-md">
-          <Users className="w-6 h-6" />
-        </div>
-        <div>
-          <h2 className="font-semibold">Members</h2>
-          <p className="text-sm font-normal text-muted-foreground">
-            ({members.length}) persone
-          </p>
-        </div>
-      </div>
-
+    <div className="backdrop-blur-xl">
       <div className="space-y-3">
         {members.map((member) => {
           const peerId =

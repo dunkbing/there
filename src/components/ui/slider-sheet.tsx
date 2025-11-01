@@ -2,29 +2,37 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Button } from "./button";
 
 interface SliderSheetProps {
   open: boolean;
   onClose: () => void;
   title?: string;
   children?: React.ReactNode;
-  side?: "left" | "right" | "bottom" | "top";
 }
 
-const SliderSheet = ({
-  open,
-  onClose,
-  title,
-  children,
-  side = "right",
-}: SliderSheetProps) => {
-  // Define direction-based animation
-  const variants = {
-    right: { hidden: { x: "100%" }, visible: { x: 0 } },
-    left: { hidden: { x: "-100%" }, visible: { x: 0 } },
-    bottom: { hidden: { y: "100%" }, visible: { y: 0 } },
-    top: { hidden: { y: "-100%" }, visible: { y: 0 } },
+const SliderSheet = ({ open, onClose, title, children }: SliderSheetProps) => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect if user is on mobile
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Animation variants for desktop (slide from right)
+  const desktopVariants = {
+    hidden: { x: "100%" },
+    visible: { x: 0 },
+  };
+
+  // Animation variants for mobile (bottom sheet)
+  const mobileVariants = {
+    hidden: { y: "100%" },
+    visible: { y: 0 },
   };
 
   return (
@@ -32,41 +40,41 @@ const SliderSheet = ({
       {open && (
         <>
           {/* Overlay */}
-          <motion.div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
+          {isMobile && (
+            <motion.div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+            />
+          )}
 
           {/* Sheet */}
           <motion.div
             initial="hidden"
             animate="visible"
             exit="hidden"
-            variants={variants[side]}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className={`fixed z-50 bg-background text-foreground shadow-xl 
-              ${side === "right" ? "top-0 right-0 h-full w-80" : ""}
-              ${side === "left" ? "top-0 left-0 h-full w-80" : ""}
-              ${side === "bottom" ? "bottom-0 left-0 w-full h-72" : ""}
-              ${side === "top" ? "top-0 left-0 w-full h-72" : ""}
-              rounded-t-2xl overflow-hidden`}
+            variants={isMobile ? mobileVariants : desktopVariants}
+            transition={{ type: "spring", stiffness: 260, damping: 30 }}
+            className={` bg-background text-foreground shadow-2xl
+              ${
+                isMobile
+                  ? "bottom-0 left-0 w-full h-[85vh] z-50 rounded-t-2xl"
+                  : "top-0 right-0 h-full xl:w-[300px] 2xl:w-[400px] rounded-l-2xl"
+              }
+              flex flex-col overflow-hidden`}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h2 className="font-medium text-lg">{title}</h2>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-full hover:bg-muted transition"
-              >
+              <Button variant={"ghost"} size={"icon"} onClick={onClose}>
                 <X className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
 
-            {/* Body */}
-            <div className="p-4 overflow-y-auto">{children}</div>
+            {/* Content */}
+            <div className="flex-1 p-4 overflow-y-auto">{children}</div>
           </motion.div>
         </>
       )}

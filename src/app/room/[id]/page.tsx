@@ -27,10 +27,13 @@ import {
   MonitorUp,
   MonitorX,
   Pencil,
+  Users,
 } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 import { useSession } from "@/lib/auth-client";
 import { roomClient } from "@/api/client";
+import Skeleton from "@/components/skelaton";
+import SliderSheet from "@/components/ui/slider-sheet";
 
 export default function RoomPage() {
   const params = useParams();
@@ -47,6 +50,7 @@ export default function RoomPage() {
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentUserName, setCurrentUserName] = useState("Guest");
+  const [openMemberList, setOpenMemberList] = useState(false);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatSendMessage, setChatSendMessage] = useState<
     (text: string) => void
@@ -100,48 +104,36 @@ export default function RoomPage() {
 
   const openSoundSelector = useCallback(() => {
     closeAllPopups();
-    if (soundSelectorOpen) {
-      setSoundSelectorOpen(false);
-      return;
-    }
-    setSoundSelectorOpen(true);
+    soundSelectorOpen
+      ? setSoundSelectorOpen(false)
+      : setSoundSelectorOpen(true);
   }, [closeAllPopups, soundSelectorOpen]);
 
   const openMusicPlayer = useCallback(() => {
     closeAllPopups();
-    if (musicPlayerOpen) {
-      setMusicPlayerOpen(false);
-      return;
-    }
-    setMusicPlayerOpen(true);
+    musicPlayerOpen ? setMusicPlayerOpen(false) : setMusicPlayerOpen(true);
   }, [closeAllPopups, musicPlayerOpen]);
 
   const openThemeSelector = useCallback(() => {
     closeAllPopups();
-    if (themeSelectorOpen) {
-      setThemeSelectorOpen(false);
-      return;
-    }
-    setThemeSelectorOpen(true);
+    themeSelectorOpen
+      ? setThemeSelectorOpen(false)
+      : setThemeSelectorOpen(true);
   }, [closeAllPopups, themeSelectorOpen]);
 
   const openFocusDialog = useCallback(() => {
     closeAllPopups();
-    if (focusDialogOpen) {
-      setFocusDialogOpen(false);
-      return;
-    }
-    setFocusDialogOpen(true);
+    focusDialogOpen ? setFocusDialogOpen(false) : setFocusDialogOpen(true);
   }, [closeAllPopups, focusDialogOpen]);
 
   const openRoomInfo = useCallback(() => {
     closeAllPopups();
-    if (roomInfoOpen) {
-      setRoomInfoOpen(false);
-      return;
-    }
-    setRoomInfoOpen(true);
+    roomInfoOpen ? setRoomInfoOpen(false) : setRoomInfoOpen(true);
   }, [closeAllPopups, roomInfoOpen]);
+
+  const handleMemberList = useCallback(() => {
+    setOpenMemberList((prev) => !prev);
+  }, []);
 
   // Fetch room data immediately on mount (don't wait for session)
   useEffect(() => {
@@ -418,12 +410,12 @@ export default function RoomPage() {
       </div>
 
       {/* Room Header */}
-      <RoomHeader room={room} />
+      {/* <RoomHeader room={room} /> */}
 
-      <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
-        <div className="grid lg:grid-cols-4 gap-6 h-full">
+      <div className="px-4 py-6 relative z-10 flex-1 min-h-0">
+        <div className="flex flex-row gap-6 h-full">
           {/* Main Content - Meeting Workspace */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="flex-5 space-y-6">
             <MeetingWorkspace
               members={room.members || []}
               currentUserId={currentUserId}
@@ -437,19 +429,28 @@ export default function RoomPage() {
           </div>
 
           {/* Sidebar - Room Members & Chat */}
-          <div className="lg:col-span-1 space-y-6">
-            <RoomMembers
-              members={room.members || []}
-              currentUserId={currentUserId}
-            />
-            <RoomChat messages={chatMessages} onSendMessage={chatSendMessage} />
-          </div>
+          {openMemberList && (
+            <div className="flex-1 space-y-6">
+              <SliderSheet
+                open={openMemberList}
+                onClose={handleMemberList}
+                title={`Members (${room?.members?.length || 0})`}
+              >
+                <RoomMembers
+                  members={room?.members || []}
+                  currentUserId={currentUserId}
+                />
+              </SliderSheet>
+
+              {/* <RoomChat messages={chatMessages} onSendMessage={chatSendMessage} /> */}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Feature Controls - Floating Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-60">
-        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-3 shadow-2xl">
+      <div className="fixed bottom-6  left-1/2 -translate-x-1/2 z-60">
+        <div className="backdrop-blur-xl  bg-white/10 dark:bg-white/5 border border-gray-300 rounded-full px-4 py-3 shadow-2xl">
           <div className="flex items-center gap-2">
             {/* Meeting Controls */}
             {meetingControls && (
@@ -522,6 +523,13 @@ export default function RoomPage() {
 
             {/* Room Features */}
             <Button
+              onClick={handleMemberList}
+              className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+              title="Memebrs"
+            >
+              <Users className="size-5" />
+            </Button>
+            <Button
               onClick={openSoundSelector}
               className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
               title="Ambient Sounds"
@@ -585,49 +593,6 @@ export default function RoomPage() {
         isOpen={showUsernameDialog}
         onSubmit={handleUsernameSubmit}
       />
-    </main>
-  );
-}
-
-function Skeleton() {
-  return (
-    <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col">
-      {/* Background decorations */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-      </div>
-
-      {/* Skeleton Header */}
-      <div className="border-b bg-background/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-8 w-32 bg-muted/20 rounded animate-pulse" />
-            <div className="h-4 w-24 bg-muted/10 rounded animate-pulse" />
-          </div>
-        </div>
-      </div>
-
-      {/* Skeleton Content */}
-      <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
-        <div className="grid lg:grid-cols-4 gap-6 h-full">
-          <div className="lg:col-span-3">
-            <div className="h-full bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-          </div>
-          <div className="lg:col-span-1 space-y-6">
-            <div className="h-32 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-            <div className="h-96 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-          </div>
-        </div>
-      </div>
-
-      {/* Loading indicator */}
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
-        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-primary/60 border-t-primary rounded-full animate-spin" />
-          <span className="text-sm text-muted-foreground">Loading room...</span>
-        </div>
-      </div>
     </main>
   );
 }
