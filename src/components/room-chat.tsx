@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Send } from "lucide-react";
+import { Input } from "./ui/input";
 
 interface ChatMessage {
   id: string;
@@ -36,11 +36,9 @@ export function RoomChat({
   }, [chatInput, onSendMessage]);
 
   return (
-    <Card className="backdrop-blur-xl border bg-white rounded-2xl p-4 flex flex-col h-[500px]">
-      <h3 className="text-lg font-semibold mb-4 text-foreground">Chat</h3>
-
+    <div className="  flex flex-col h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-3 mb-4 bg-black/10 rounded-lg p-3">
+      <div className="flex-1 overflow-y-auto space-y-3 mb-4 bg-black/5 rounded-lg p-3">
         {chatMessages.length === 0 ? (
           <p className="text-center text-muted-foreground py-8 text-sm">
             No messages yet. Start chatting!
@@ -68,22 +66,21 @@ export function RoomChat({
 
       {/* Input */}
       <div className="flex gap-2">
-        <input
+        <Input
           type="text"
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder="Type a message..."
-          className="flex-1 px-3 py-2 border border-white/20 rounded-lg bg-white/5 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
         />
         <Button
           onClick={sendMessage}
           size={"icon"}
-          className="bg-primary hover:bg-primary/90"
+          className="bg-primary aspect-square h-full hover:bg-primary/90"
         >
-          <Send className="w-4 h-4" />
+          <Send className="size-4" />
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

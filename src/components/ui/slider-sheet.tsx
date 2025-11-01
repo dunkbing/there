@@ -61,7 +61,7 @@ const SliderSheet = ({ open, onClose, title, children }: SliderSheetProps) => {
               ${
                 isMobile
                   ? "bottom-0 left-0 w-full h-[85vh] z-50 rounded-t-2xl"
-                  : "top-0 right-0 h-full xl:w-[300px] 2xl:w-[400px] rounded-l-2xl"
+                  : "top-0 border right-0 h-full xl:w-[300px] 2xl:w-[350px] rounded-2xl"
               }
               flex flex-col overflow-hidden`}
           >
