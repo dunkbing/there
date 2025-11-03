@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { X, Play, Pause, Copy, Youtube } from "lucide-react";
+import { Input } from "./ui/input";
 
 interface MusicPlayerProps {
   isOpen: boolean;
@@ -74,7 +75,7 @@ export function MusicPlayer({ isOpen, onClose }: MusicPlayerProps) {
               YouTube URL
             </label>
             <div className="flex gap-2">
-              <input
+              <Input
                 type="text"
                 placeholder="https://youtube.com/watch?v=..."
                 value={youtubeUrl}
