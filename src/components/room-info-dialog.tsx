@@ -47,78 +47,75 @@ export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
         onClick={onClose}
       />
 
-      <div className="relative z-70 w-[480px] backdrop-blur-xl bg-background border rounded-2xl  shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold text-foreground">Room Info</h2>
+      <div className="relative z-70 w-[460px] backdrop-blur-xl bg-background border rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b">
+          <h2 className="text-lg font-semibold">Focus Room Info</h2>
           <Button
             onClick={onClose}
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 hover:bg-white/10"
+            className="h-8 w-8 p-0 hover:bg-foreground/5"
           >
             <X className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="space-y-6 p-6">
-          {/* Room ID */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Room ID</label>
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                value={roomId}
-                readOnly
-                className="flex-1 bg-foreground/5  border border-foreground/10  px-4 py-2 text-sm text-foreground/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
-              />
-              <Button
-                onClick={copyRoomLink}
-                variant="outline"
-                className={cn(
-                  "gap-2 hover:bg-foreground/5 transition",
-                  copied &&
-                    "text-green-500 hover:text-green-500 border-green-500"
-                )}
-              >
-                <Copy className="w-4 h-4" />
-                {copied ? "Copied!" : "Copy"}
-              </Button>
+        <div className="p-6 space-y-8">
+          {/* Room Details */}
+          <section>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm mb-1">Room ID</label>
+                <Input
+                  onFocus={(e) => e.target.select()}
+                  readOnly
+                  value={roomId}
+                  className="flex-1 bg-foreground/5 border border-foreground/10 rounded-lg px-4 py-2 text-sm text-foreground/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Invite Link</label>
+                <Input
+                  onFocus={(e) => e.target.select()}
+                  readOnly
+                  value={roomLink}
+                  className="flex-1 bg-foreground/5 border border-foreground/10 rounded-lg px-4 py-2 text-sm text-foreground/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  onClick={copyRoomLink}
+                  variant="outline"
+                  className={cn(
+                    "gap-2 hover:bg-foreground/5",
+                    copied &&
+                      "bg-green-50 text-green-600 hover:text-green-500 border-green-600"
+                  )}
+                >
+                  <Copy className="w-4 h-4" />
+                  {copied ? "Copied!" : "Copy Link"}
+                </Button>
+                {/* <Button variant="outline" className="gap-2">
+                  <Share2 className="w-4 h-4" /> Share
+                </Button> */}
+              </div>
             </div>
-          </div>
-
-          {/* Share Link */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Share Link</label>
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                value={`${window.location.origin}?room=${roomId}`}
-                readOnly
-                className="flex-1 bg-foreground/5  border border-foreground/10  px-4 py-2 text-sm text-foreground/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
-              />
-              <Button
-                onClick={copyRoomLink}
-                variant="outline"
-                className="gap-2 hover:bg-foreground/5"
-              >
-                <Share2 className="w-4 h-4" />
-                Share
-              </Button>
-            </div>
-          </div>
+          </section>
 
           {/* Participants */}
-          <Card className="p-4 bg-foreground/5 rounded-lg border ">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="w-5 h-5 text-primary" />
-              <span className="font-semibold">
-                {participants} participant{participants !== 1 ? "s" : ""}
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Invite others to join your focus session
-            </p>
-          </Card>
+          <section>
+            <Card className="p-4 bg-foreground/5 border rounded-xl">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  {participants === 1
+                    ? "You’re the only participant. Share the link to invite others."
+                    : `${participants} participants currently in the room.`}
+                </p>
+              </div>
+            </Card>
+          </section>
         </div>
       </div>
     </div>

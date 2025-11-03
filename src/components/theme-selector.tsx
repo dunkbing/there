@@ -109,8 +109,8 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
         onClick={onClose}
       />
 
-      <div className="relative z-70 w-80 backdrop-blur-xl bg-background border  rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-        <div className="flex items-center justify-between mb-4">
+      <div className="relative z-70 w-96 backdrop-blur-xl bg-background border  rounded-2xl  shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-lg font-semibold text-foreground">
             Choose Theme
           </h2>
@@ -124,7 +124,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 p-6 gap-3">
           {themes.map((theme) => (
             <button
               key={theme.id}
