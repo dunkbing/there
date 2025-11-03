@@ -11,6 +11,7 @@ interface AmbientSound {
   name: string;
   description: string;
   color: string;
+  icon: React.ReactNode;
 }
 
 const AMBIENT_SOUNDS: AmbientSound[] = [
@@ -19,48 +20,56 @@ const AMBIENT_SOUNDS: AmbientSound[] = [
     name: "Rain",
     description: "Gentle rainfall",
     color: "from-blue-400 to-blue-600",
+    icon: "🌧️",
   },
   {
     id: "forest",
     name: "Forest",
     description: "Forest sounds",
     color: "from-green-400 to-green-600",
+    icon: "🌲",
   },
   {
     id: "ocean",
     name: "Ocean Waves",
     description: "Ocean waves",
     color: "from-cyan-400 to-cyan-600",
+    icon: "🌊",
   },
   {
     id: "coffee",
     name: "Coffee Shop",
     description: "Café ambience",
     color: "from-amber-400 to-amber-600",
+    icon: "☕",
   },
   {
     id: "fireplace",
     name: "Fireplace",
     description: "Crackling fire",
     color: "from-orange-400 to-orange-600",
+    icon: "🔥",
   },
   {
     id: "thunderstorm",
     name: "Thunderstorm",
     description: "Storm sounds",
     color: "from-slate-400 to-slate-600",
+    icon: "⚡",
   },
   {
     id: "birds",
     name: "Birds Chirping",
     description: "Bird songs",
     color: "from-yellow-400 to-yellow-600",
+    icon: "🐦",
   },
   {
     id: "wind",
     name: "Wind Chimes",
     description: "Wind chimes",
     color: "from-purple-400 to-purple-600",
+    icon: "🎐",
   },
 ];
 
@@ -458,74 +467,101 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
         onClick={onClose}
       />
 
-      <div className="relative z-70 w-80 max-h-96 overflow-y-auto backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-foreground">Ambient Sounds</h3>
-          <Button
-            onClick={onClose}
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 hover:bg-white/10"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+      <div className="relative z-70 w-full max-w-2xl bg-card border border-border rounded-3xl shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-300">
+        {/* Header */}
+        <div className=" border-b border-border px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">
+                Ambient Sounds
+              </h2>
+            </div>
+            <Button
+              onClick={onClose}
+              variant="ghost"
+              size="sm"
+              className="rounded-full h-10 w-10 p-0 hover:bg-foreground/10"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          {/* Volume Control */}
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={toggleMute}
-              variant="outline"
-              size="sm"
-              className="shrink-0 bg-transparent"
-            >
-              {isMuted ? (
-                <VolumeX className="w-4 h-4" />
-              ) : (
-                <Volume2 className="w-4 h-4" />
-              )}
-            </Button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={handleVolumeChange}
-              className="flex-1 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-            />
-            <span className="text-xs text-white/70 w-8 text-right">
-              {Math.round(volume * 100)}%
-            </span>
+        {/* Content */}
+        <div className="p-8 space-y-6 max-h-96 overflow-y-auto">
+          {/* Volume Control Section */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-semibold text-foreground">
+              Volume
+            </label>
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={toggleMute}
+                variant="outline"
+                size="sm"
+                className="shrink-0 h-10 w-10 p-0 bg-transparent"
+              >
+                {isMuted ? (
+                  <VolumeX className="w-4 h-4" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
+                )}
+              </Button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="flex-1 h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <span className="text-sm font-medium text-foreground w-12 text-right">
+                {Math.round(volume * 100)}%
+              </span>
+            </div>
           </div>
 
-          {/* Sounds Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {AMBIENT_SOUNDS.map((sound) => (
-              <button
-                key={sound.id}
-                onClick={() => playSound(sound.id)}
-                className={`p-3 rounded-lg transition-all duration-300 border-2 ${
-                  playingSound === sound.id
-                    ? "border-white/40 bg-white/15"
-                    : "border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10"
-                }`}
-              >
-                <div
-                  className={`bg-linear-to-br ${sound.color} rounded-md p-3 mb-2 flex items-center justify-center`}
+          {/* Sounds Grid - 4 columns for desktop */}
+          <div>
+            <label className="text-sm font-semibold text-foreground block mb-4">
+              Select Sound
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {AMBIENT_SOUNDS.map((sound) => (
+                <button
+                  key={sound.id}
+                  onClick={() => playSound(sound.id)}
+                  className={`group relative overflow-hidden rounded-2xl transition-all duration-300 ${
+                    playingSound === sound.id
+                      ? "ring-2 ring-primary shadow-lg scale-105"
+                      : "hover:shadow-md hover:scale-102"
+                  }`}
                 >
-                  {playingSound === sound.id ? (
-                    <Pause className="w-5 h-5 text-white" />
-                  ) : (
-                    <Play className="w-5 h-5 text-white" />
-                  )}
-                </div>
-                <p className="text-xs font-medium text-white/90">
-                  {sound.name}
-                </p>
-              </button>
-            ))}
+                  <div
+                    className={`absolute inset-0 bg-linear-to-br ${sound.color} opacity-90 group-hover:opacity-100 transition-opacity`}
+                  />
+
+                  {/* Content */}
+                  <div className="relative p-4 flex flex-col items-center justify-center min-h-32 text-center">
+                    <div className="text-4xl mb-3">{sound.icon}</div>
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <div className="bg-black/40 rounded-full p-3">
+                        {playingSound === sound.id ? (
+                          <Pause className="w-6 h-6 text-white" />
+                        ) : (
+                          <Play className="w-6 h-6 text-white" />
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-white mt-2">
+                      {sound.name}
+                    </p>
+                    <p className="text-xs text-white/80">{sound.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 interface Theme {
   id: string;
@@ -109,8 +109,8 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
         onClick={onClose}
       />
 
-      <div className="relative z-[70] w-80 backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-        <div className="flex items-center justify-between mb-4">
+      <div className="relative z-70 w-96 backdrop-blur-xl bg-background border  rounded-2xl  shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-lg font-semibold text-foreground">
             Choose Theme
           </h2>
@@ -124,39 +124,54 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 p-6 gap-3">
           {themes.map((theme) => (
             <button
               key={theme.id}
               onClick={() => applyTheme(theme.id)}
-              className={`p-4 rounded-lg transition-all duration-300 border-2 ${
+              className={`group cursor-pointer relative p-4 rounded-2xl transition-all duration-200 border-2 overflow-hidden ${
                 currentTheme === theme.id
-                  ? "border-primary bg-primary/20"
-                  : "border-white/10 hover:border-white/20 bg-white/5"
+                  ? "border-primary bg-primary/15 shadow-lg scale-105"
+                  : "border-transparent bg-muted hover:border-border hover:bg-muted/80"
               }`}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: `hsl(${theme.colors.primary})` }}
-                />
-                <span className="text-sm font-medium text-foreground">
+              {/* Gradient background preview */}
+              <div
+                className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity"
+                style={{
+                  background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.accent})`,
+                }}
+              />
+
+              {/* Content */}
+              <div className="relative flex flex-col items-center gap-3">
+                {/* Theme name */}
+                <span className="text-sm font-semibold text-foreground truncate w-full text-center">
                   {theme.name}
                 </span>
-              </div>
-              <div className="flex gap-1">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: `hsl(${theme.colors.primary})` }}
-                />
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: `hsl(${theme.colors.accent})` }}
-                />
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: `hsl(${theme.colors.secondary})` }}
-                />
+
+                {/* Color swatches */}
+                <div className="flex gap-2 justify-center">
+                  <div
+                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-background transition-transform group-hover:scale-110"
+                    style={{ backgroundColor: theme.colors.primary }}
+                  />
+                  <div
+                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-background transition-transform group-hover:scale-110"
+                    style={{ backgroundColor: theme.colors.accent }}
+                  />
+                  <div
+                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-background transition-transform group-hover:scale-110"
+                    style={{ backgroundColor: theme.colors.secondary }}
+                  />
+                </div>
+
+                {/* Selected indicator */}
+                {currentTheme === theme.id && (
+                  <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full p-1">
+                    <Check className="w-3 h-3" />
+                  </div>
+                )}
               </div>
             </button>
           ))}

@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { PomodoroTimer } from "@/components/pomodoro-timer";
 import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface FocusDialogProps {
   isOpen: boolean;
@@ -10,17 +11,20 @@ interface FocusDialogProps {
 }
 
 export function FocusDialog({ isOpen, onClose }: FocusDialogProps) {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center pb-28">
+    <div
+      className={cn(
+        isOpen ? "flex" : "hidden",
+        "fixed inset-0 z-50  items-end justify-center pb-28",
+      )}
+    >
       <div
         className="fixed inset-0 bg-black/20 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      <div className="relative z-[70] w-[480px] backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-        <div className="flex items-center justify-between mb-4">
+      <div className="relative z-70 w-[480px] backdrop-blur-xl bg-background border border-white/20 dark:border-white/10 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="flex items-center justify-between  p-6 border-b">
           <h2 className="text-lg font-semibold text-foreground">Focus Timer</h2>
           <Button
             onClick={onClose}
@@ -32,7 +36,7 @@ export function FocusDialog({ isOpen, onClose }: FocusDialogProps) {
           </Button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 p-6">
           <PomodoroTimer />
         </div>
       </div>

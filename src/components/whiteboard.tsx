@@ -5,7 +5,7 @@ import "tldraw/tldraw.css";
 
 export function Whiteboard() {
   return (
-    <div className="w-full h-[600px] rounded-lg overflow-hidden border border-border">
+    <div className="w-full h-full rounded-lg overflow-hidden ">
       <Tldraw />
     </div>
   );

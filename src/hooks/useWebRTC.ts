@@ -259,7 +259,10 @@ export function useWebRTC(
             });
 
             // Start stats monitoring now that track is unmuted
-            if (event.track.kind === "video" && !statsIntervalsRef.current.has(trackId)) {
+            if (
+              event.track.kind === "video" &&
+              !statsIntervalsRef.current.has(trackId)
+            ) {
               console.log(
                 `[WebRTC] Starting stats monitoring for ${peerId} after unmute`,
               );
@@ -353,7 +356,9 @@ export function useWebRTC(
             setStreamUpdateCounter((c) => c + 1);
           };
           event.track.addEventListener("unmute", handleUnmute);
-          trackEventHandlers.push(() => event.track.removeEventListener("unmute", handleUnmute));
+          trackEventHandlers.push(() =>
+            event.track.removeEventListener("unmute", handleUnmute),
+          );
 
           const handleMute = async () => {
             console.log(`[WebRTC] ⚠️ Track muted for ${peerId}:`, {
@@ -388,7 +393,9 @@ export function useWebRTC(
             setStreamUpdateCounter((c) => c + 1);
           };
           event.track.addEventListener("mute", handleMute);
-          trackEventHandlers.push(() => event.track.removeEventListener("mute", handleMute));
+          trackEventHandlers.push(() =>
+            event.track.removeEventListener("mute", handleMute),
+          );
 
           // Listen for track ending to remove stream
           const handleEnded = () => {
@@ -419,13 +426,15 @@ export function useWebRTC(
             });
           };
           event.track.addEventListener("ended", handleEnded);
-          trackEventHandlers.push(() => event.track.removeEventListener("ended", handleEnded));
+          trackEventHandlers.push(() =>
+            event.track.removeEventListener("ended", handleEnded),
+          );
 
           // Store cleanup function for this peer's tracks
           const existingCleanup = trackCleanupRef.current.get(peerId);
           trackCleanupRef.current.set(peerId, () => {
             if (existingCleanup) existingCleanup();
-            trackEventHandlers.forEach(cleanup => cleanup());
+            trackEventHandlers.forEach((cleanup) => cleanup());
           });
 
           // Log track stats continuously to monitor byte flow (only if track is not initially muted)
