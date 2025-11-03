@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Settings } from "lucide-react";
+import { Input } from "./ui/input";
 
 interface TimerSettings {
   workDuration: number;
@@ -66,7 +67,7 @@ export function PomodoroTimer() {
             setTimeLeft(
               (isLongBreak
                 ? settings.longBreakDuration
-                : settings.breakDuration) * 60,
+                : settings.breakDuration) * 60
             );
           } else {
             setTimeLeft(settings.workDuration * 60);
@@ -85,9 +86,8 @@ export function PomodoroTimer() {
   }, [isRunning, isWorkSession, sessionsCompleted, settings]);
 
   const playNotification = () => {
-    const audioContext = new (
-      window.AudioContext || (window as any).webkitAudioContext
-    )();
+    const audioContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
 
@@ -100,7 +100,7 @@ export function PomodoroTimer() {
     gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(
       0.01,
-      audioContext.currentTime + 0.5,
+      audioContext.currentTime + 0.5
     );
 
     oscillator.start(audioContext.currentTime);
@@ -110,7 +110,9 @@ export function PomodoroTimer() {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   const handleReset = () => {
@@ -150,7 +152,7 @@ export function PomodoroTimer() {
                   className={`h-3 w-10 rounded-full transition-all duration-300 ease-out ${
                     i < sessionsCompleted % 4
                       ? "bg-linear-to-r from-primary to-accent shadow-lg shadow-primary/50"
-                      : "bg-white/20 dark:bg-white/10"
+                      : "bg-white/95"
                   }`}
                 />
               ))}
@@ -195,14 +197,14 @@ export function PomodoroTimer() {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border dark:border-white/10 rounded-2xl border-white/30 p-8">
+        <div className=" backdrop-blur-xl  bg-white/10 dark:bg-white/5 border dark:border-white/10 rounded-2xl border-white/30 p-8">
           <h3 className="text-xl font-bold mb-6">Timer Settings</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-semibold mb-3">
                 Work Duration (min)
               </label>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="60"
@@ -210,17 +212,17 @@ export function PomodoroTimer() {
                 onChange={(e) =>
                   handleSettingsChange(
                     "workDuration",
-                    Number.parseInt(e.target.value),
+                    Number.parseInt(e.target.value)
                   )
                 }
-                className="w-full px-4 py-3 backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
+                className="w-full px-4 py-3 backdrop-blur-xl  rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
               />
             </div>
             <div>
               <label className="block text-sm font-semibold mb-3">
                 Break Duration (min)
               </label>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="30"
@@ -228,17 +230,17 @@ export function PomodoroTimer() {
                 onChange={(e) =>
                   handleSettingsChange(
                     "breakDuration",
-                    Number.parseInt(e.target.value),
+                    Number.parseInt(e.target.value)
                   )
                 }
-                className="w-full px-4 py-3 backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
+                className="w-full px-4 py-3 backdrop-blur-xl  rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
               />
             </div>
             <div>
               <label className="block text-sm font-semibold mb-3">
                 Long Break (min)
               </label>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="60"
@@ -246,10 +248,10 @@ export function PomodoroTimer() {
                 onChange={(e) =>
                   handleSettingsChange(
                     "longBreakDuration",
-                    Number.parseInt(e.target.value),
+                    Number.parseInt(e.target.value)
                   )
                 }
-                className="w-full px-4 py-3 backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
+                className="w-full px-4 py-3 backdrop-blur-xl  rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
               />
             </div>
           </div>

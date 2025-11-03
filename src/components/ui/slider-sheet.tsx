@@ -57,7 +57,7 @@ const SliderSheet = ({ open, onClose, title, children }: SliderSheetProps) => {
             exit="hidden"
             variants={isMobile ? mobileVariants : desktopVariants}
             transition={{ type: "spring", stiffness: 260, damping: 30 }}
-            className={` bg-background text-foreground shadow-2xl
+            className={` bg-background text-foreground shadow-sm
               ${
                 isMobile
                   ? "bottom-0 left-0 w-full h-[85vh] z-50 rounded-t-2xl"

@@ -12,7 +12,7 @@ interface RoomInfoDialogProps {
 
 export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
   const [roomId, setRoomId] = useState(
-    "focus-" + Math.random().toString(36).substr(2, 9),
+    "focus-" + Math.random().toString(36).substr(2, 9)
   );
   const [copied, setCopied] = useState(false);
   const [participants, setParticipants] = useState(1);
@@ -33,7 +33,7 @@ export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
         onClick={onClose}
       />
 
-      <div className="relative z-[70] w-[480px] backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+      <div className="relative z-70 w-[480px] backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Room Info</h2>
           <Button
