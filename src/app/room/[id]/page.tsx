@@ -27,10 +27,15 @@ import {
   MonitorUp,
   MonitorX,
   Pencil,
+  Users,
+  MessageCircle,
 } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 import { useSession } from "@/lib/auth-client";
 import { roomClient } from "@/api/client";
+import Skeleton from "@/components/skelaton";
+import SliderSheet from "@/components/ui/slider-sheet";
+import { Separator } from "@/components/ui/separator";
 
 export default function RoomPage() {
   const params = useParams();
@@ -47,6 +52,9 @@ export default function RoomPage() {
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentUserName, setCurrentUserName] = useState("Guest");
+  const [activePanel, setActivePanel] = useState<"chat" | "members" | null>(
+    null
+  );
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatSendMessage, setChatSendMessage] = useState<
     (text: string) => void
@@ -74,10 +82,10 @@ export default function RoomPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       setCurrentUserId(
-        session?.user?.id || localStorage.getItem(`guestId_${roomId}`) || "",
+        session?.user?.id || localStorage.getItem(`guestId_${roomId}`) || ""
       );
       setCurrentUserName(
-        session?.user?.name || localStorage.getItem("guestUsername") || "Guest",
+        session?.user?.name || localStorage.getItem("guestUsername") || "Guest"
       );
     }
   }, [session, roomId]);
@@ -100,28 +108,36 @@ export default function RoomPage() {
 
   const openSoundSelector = useCallback(() => {
     closeAllPopups();
-    setSoundSelectorOpen(true);
-  }, [closeAllPopups]);
+    soundSelectorOpen
+      ? setSoundSelectorOpen(false)
+      : setSoundSelectorOpen(true);
+  }, [closeAllPopups, soundSelectorOpen]);
 
   const openMusicPlayer = useCallback(() => {
     closeAllPopups();
-    setMusicPlayerOpen(true);
-  }, [closeAllPopups]);
+    musicPlayerOpen ? setMusicPlayerOpen(false) : setMusicPlayerOpen(true);
+  }, [closeAllPopups, musicPlayerOpen]);
 
   const openThemeSelector = useCallback(() => {
     closeAllPopups();
-    setThemeSelectorOpen(true);
-  }, [closeAllPopups]);
+    themeSelectorOpen
+      ? setThemeSelectorOpen(false)
+      : setThemeSelectorOpen(true);
+  }, [closeAllPopups, themeSelectorOpen]);
 
   const openFocusDialog = useCallback(() => {
     closeAllPopups();
-    setFocusDialogOpen(true);
-  }, [closeAllPopups]);
+    focusDialogOpen ? setFocusDialogOpen(false) : setFocusDialogOpen(true);
+  }, [closeAllPopups, focusDialogOpen]);
 
   const openRoomInfo = useCallback(() => {
     closeAllPopups();
-    setRoomInfoOpen(true);
-  }, [closeAllPopups]);
+    roomInfoOpen ? setRoomInfoOpen(false) : setRoomInfoOpen(true);
+  }, [closeAllPopups, roomInfoOpen]);
+
+  const togglePanel = (tab: "chat" | "members") => {
+    setActivePanel((prev) => (prev === tab ? null : tab));
+  };
 
   // Fetch room data immediately on mount (don't wait for session)
   useEffect(() => {
@@ -138,7 +154,7 @@ export default function RoomPage() {
           console.log(
             `[RoomPage ${roomId}] Room data loaded:`,
             data.name,
-            `(${data.members?.length || 0} members)`,
+            `(${data.members?.length || 0} members)`
           );
           setRoom(data);
           // Initialize previous members list
@@ -147,7 +163,7 @@ export default function RoomPage() {
         } else {
           console.error(
             `[RoomPage ${roomId}] Room fetch failed with status:`,
-            response.status,
+            response.status
           );
         }
       } catch (error) {
@@ -226,7 +242,7 @@ export default function RoomPage() {
         joiningRef.current = false;
       }
     },
-    [roomId],
+    [roomId]
   );
 
   // Auto-join authenticated users
@@ -258,7 +274,7 @@ export default function RoomPage() {
       setShowUsernameDialog(false);
       joinRoom(username);
     },
-    [joinRoom],
+    [joinRoom]
   );
 
   const handleChatUpdate = useCallback(
@@ -266,7 +282,7 @@ export default function RoomPage() {
       setChatMessages(messages);
       setChatSendMessage(() => sendMessage);
     },
-    [],
+    []
   );
 
   const handleControlsReady = useCallback((controls: any) => {
@@ -294,7 +310,7 @@ export default function RoomPage() {
               m.user?.id === joinedUserId ||
               m.userId === joinedUserId ||
               m.guestId === joinedUserId ||
-              m.id === joinedUserId,
+              m.id === joinedUserId
           );
           if (newMember) {
             const memberName =
@@ -304,7 +320,7 @@ export default function RoomPage() {
         });
       }
     },
-    [roomId],
+    [roomId]
   );
 
   const handleUserLeft = useCallback(
@@ -317,7 +333,7 @@ export default function RoomPage() {
             m.user?.id === leftUserId ||
             m.userId === leftUserId ||
             m.guestId === leftUserId ||
-            m.id === leftUserId,
+            m.id === leftUserId
         );
         if (leftMember) {
           const memberName =
@@ -341,7 +357,7 @@ export default function RoomPage() {
           }
         });
     },
-    [roomId],
+    [roomId]
   );
 
   // Handle disconnect when user leaves the room
@@ -390,20 +406,14 @@ export default function RoomPage() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col">
-      {/* Background decorations */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-      </div>
-
+    <main className="h-screen overflow-hidden p-5 gap-5 flex flex-col">
       {/* Room Header */}
-      <RoomHeader room={room} />
+      {/* <RoomHeader room={room} /> */}
 
-      <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
-        <div className="grid lg:grid-cols-4 gap-6 h-full">
+      <div className="relative z-10 flex-1 min-h-0">
+        <div className="flex flex-row gap-6 h-full">
           {/* Main Content - Meeting Workspace */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="flex-5 duration-300 space-y-6">
             <MeetingWorkspace
               members={room.members || []}
               currentUserId={currentUserId}
@@ -417,127 +427,165 @@ export default function RoomPage() {
           </div>
 
           {/* Sidebar - Room Members & Chat */}
-          <div className="lg:col-span-1 space-y-6">
-            <RoomMembers
-              members={room.members || []}
-              currentUserId={currentUserId}
-            />
-            <RoomChat messages={chatMessages} onSendMessage={chatSendMessage} />
-          </div>
+          {activePanel && (
+            <div className="flex-1 space-y-6">
+              {activePanel && (
+                <SliderSheet
+                  open={!!activePanel}
+                  onClose={() => setActivePanel(null)}
+                  title={
+                    activePanel === "members"
+                      ? `Members (${room?.members?.length || 0})`
+                      : "Chat"
+                  }
+                >
+                  {activePanel === "members" && (
+                    <RoomMembers
+                      members={room?.members || []}
+                      currentUserId={currentUserId}
+                    />
+                  )}
+
+                  {activePanel === "chat" && (
+                    <RoomChat
+                      messages={chatMessages}
+                      onSendMessage={chatSendMessage}
+                    />
+                  )}
+                </SliderSheet>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Feature Controls - Floating Bar */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-60">
-        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-3 shadow-2xl">
-          <div className="flex items-center gap-2">
-            {/* Meeting Controls */}
-            {meetingControls && (
-              <>
-                <Button
-                  onClick={meetingControls.toggleMic}
-                  className={`rounded-full w-12 h-12 p-0 ${
-                    !meetingControls.isMicOn
-                      ? "bg-destructive hover:bg-destructive/90"
-                      : "bg-primary hover:bg-primary/90"
-                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
-                  title={meetingControls.isMicOn ? "Mute" : "Unmute"}
-                >
-                  {meetingControls.isMicOn ? (
-                    <Mic className="w-5 h-5" />
-                  ) : (
-                    <MicOff className="w-5 h-5" />
-                  )}
-                </Button>
-                <Button
-                  onClick={meetingControls.toggleVideo}
-                  className={`rounded-full w-12 h-12 p-0 ${
-                    !meetingControls.isVideoOn
-                      ? "bg-destructive hover:bg-destructive/90"
-                      : "bg-primary hover:bg-primary/90"
-                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
-                  title={
-                    meetingControls.isVideoOn ? "Stop Camera" : "Start Camera"
-                  }
-                >
-                  {meetingControls.isVideoOn ? (
-                    <Video className="w-5 h-5" />
-                  ) : (
-                    <VideoOff className="w-5 h-5" />
-                  )}
-                </Button>
-                <Button
-                  onClick={meetingControls.toggleScreenShare}
-                  className={`rounded-full w-12 h-12 p-0 ${
-                    meetingControls.isScreenSharing
-                      ? "bg-accent hover:bg-accent/90"
-                      : "bg-secondary hover:bg-secondary/90"
-                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
-                  title={
-                    meetingControls.isScreenSharing
-                      ? "Stop Sharing"
-                      : "Share Screen"
-                  }
-                >
-                  {meetingControls.isScreenSharing ? (
-                    <MonitorX className="w-5 h-5" />
-                  ) : (
-                    <MonitorUp className="w-5 h-5" />
-                  )}
-                </Button>
-                <Button
-                  onClick={meetingControls.toggleWhiteboard}
-                  className={`rounded-full w-12 h-12 p-0 ${
-                    meetingControls.mainContent === "whiteboard"
-                      ? "bg-accent hover:bg-accent/90"
-                      : "bg-secondary hover:bg-secondary/90"
-                  } text-primary-foreground shadow-lg transition-all hover:scale-110`}
-                  title="Whiteboard"
-                >
-                  <Pencil className="w-5 h-5" />
-                </Button>
-                <div className="w-px h-8 bg-white/20" />
-              </>
-            )}
-
-            {/* Room Features */}
-            <Button
-              onClick={openSoundSelector}
-              className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-              title="Ambient Sounds"
-            >
-              <Volume2 className="w-5 h-5" />
-            </Button>
-            <Button
-              onClick={openMusicPlayer}
-              className="rounded-full w-12 h-12 p-0 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg transition-all hover:scale-110"
-              title="Music Player"
-            >
-              <Music className="w-5 h-5" />
-            </Button>
-            <Button
-              onClick={openThemeSelector}
-              className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
-              title="Change Theme"
-            >
-              <Palette className="w-5 h-5" />
-            </Button>
-            <Button
-              onClick={openFocusDialog}
-              className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-              title="Focus Timer"
-            >
-              <Timer className="w-5 h-5" />
-            </Button>
-            <Button
-              onClick={openRoomInfo}
-              className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
-              title="Room Info"
-            >
-              <Info className="w-5 h-5" />
-            </Button>
-          </div>
+      <div className="flex flex-row items-center">
+        <div className="flex-1">
+          <h1 className="text-xl font-semibold">{room.name}</h1>
         </div>
+        <div className="flex items-center h-full w-fit overflow-hidden gap-2 bg-background border border-gray-300 rounded-full p-3 shadow-2xl">
+          {/* Meeting Controls */}
+          {meetingControls && (
+            <>
+              <Button
+                onClick={meetingControls.toggleMic}
+                className={`rounded-full w-12 h-12 p-0 ${
+                  !meetingControls.isMicOn
+                    ? "bg-destructive hover:bg-destructive/90"
+                    : "bg-primary hover:bg-primary/90"
+                } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                title={meetingControls.isMicOn ? "Mute" : "Unmute"}
+              >
+                {meetingControls.isMicOn ? (
+                  <Mic className="w-5 h-5" />
+                ) : (
+                  <MicOff className="w-5 h-5" />
+                )}
+              </Button>
+              <Button
+                onClick={meetingControls.toggleVideo}
+                className={`rounded-full w-12 h-12 p-0 ${
+                  !meetingControls.isVideoOn
+                    ? "bg-destructive hover:bg-destructive/90"
+                    : "bg-primary hover:bg-primary/90"
+                } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                title={
+                  meetingControls.isVideoOn ? "Stop Camera" : "Start Camera"
+                }
+              >
+                {meetingControls.isVideoOn ? (
+                  <Video className="w-5 h-5" />
+                ) : (
+                  <VideoOff className="w-5 h-5" />
+                )}
+              </Button>
+              <Button
+                onClick={meetingControls.toggleScreenShare}
+                className={`rounded-full w-12 h-12 p-0 ${
+                  meetingControls.isScreenSharing
+                    ? "bg-accent hover:bg-accent/90"
+                    : "bg-secondary hover:bg-secondary/90"
+                } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                title={
+                  meetingControls.isScreenSharing
+                    ? "Stop Sharing"
+                    : "Share Screen"
+                }
+              >
+                {meetingControls.isScreenSharing ? (
+                  <MonitorX className="w-5 h-5" />
+                ) : (
+                  <MonitorUp className="w-5 h-5" />
+                )}
+              </Button>
+              <Button
+                onClick={meetingControls.toggleWhiteboard}
+                className={`rounded-full w-12 h-12 p-0 ${
+                  meetingControls.mainContent === "whiteboard"
+                    ? "bg-accent hover:bg-accent/90"
+                    : "bg-secondary hover:bg-secondary/90"
+                } text-primary-foreground shadow-lg transition-all hover:scale-110`}
+                title="Whiteboard"
+              >
+                <Pencil className="w-5 h-5" />
+              </Button>
+            </>
+          )}
+
+          <div className="bg-gray-300 h-10 w-px" />
+          {/* Room Features */}
+          <Button
+            onClick={() => togglePanel("members")}
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+            title="Memebrs"
+          >
+            <Users className="size-4" />
+          </Button>
+          <Button
+            onClick={() => togglePanel("chat")}
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+            title="Chat"
+          >
+            <MessageCircle className="size-4" />
+          </Button>
+          <Button
+            onClick={openSoundSelector}
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+            title="Ambient Sounds"
+          >
+            <Volume2 className="size-4" />
+          </Button>
+          <Button
+            onClick={openMusicPlayer}
+            className="rounded-full w-12 h-12 p-0 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg transition-all hover:scale-110"
+            title="Music Player"
+          >
+            <Music className="size-4" />
+          </Button>
+          <Button
+            onClick={openThemeSelector}
+            className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
+            title="Change Theme"
+          >
+            <Palette className="size-4" />
+          </Button>
+          <Button
+            onClick={openFocusDialog}
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+            title="Focus Timer"
+          >
+            <Timer className="size-4" />
+          </Button>
+          <Button
+            onClick={openRoomInfo}
+            className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
+            title="Room Info"
+          >
+            <Info className="size-4" />
+          </Button>
+        </div>
+        <div className="flex-1"></div>
       </div>
 
       {/* Popups */}
@@ -565,49 +613,6 @@ export default function RoomPage() {
         isOpen={showUsernameDialog}
         onSubmit={handleUsernameSubmit}
       />
-    </main>
-  );
-}
-
-function Skeleton() {
-  return (
-    <main className="h-screen overflow-hidden bg-linear-to-br from-background via-background to-primary/5 flex flex-col">
-      {/* Background decorations */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-20 animate-pulse" />
-      </div>
-
-      {/* Skeleton Header */}
-      <div className="border-b bg-background/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-8 w-32 bg-muted/20 rounded animate-pulse" />
-            <div className="h-4 w-24 bg-muted/10 rounded animate-pulse" />
-          </div>
-        </div>
-      </div>
-
-      {/* Skeleton Content */}
-      <div className="container mx-auto px-4 py-6 relative z-10 flex-1 min-h-0">
-        <div className="grid lg:grid-cols-4 gap-6 h-full">
-          <div className="lg:col-span-3">
-            <div className="h-full bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-          </div>
-          <div className="lg:col-span-1 space-y-6">
-            <div className="h-32 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-            <div className="h-96 bg-card/50 backdrop-blur-sm border rounded-lg animate-pulse" />
-          </div>
-        </div>
-      </div>
-
-      {/* Loading indicator */}
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
-        <div className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-primary/60 border-t-primary rounded-full animate-spin" />
-          <span className="text-sm text-muted-foreground">Loading room...</span>
-        </div>
-      </div>
     </main>
   );
 }

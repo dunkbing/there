@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Copy, Globe, Lock } from "lucide-react";
 import { type SelectRoom } from "@/lib/schemas";
+import { toast } from "sonner";
 
 interface RoomHeaderProps {
   room: SelectRoom;
@@ -11,11 +12,13 @@ interface RoomHeaderProps {
 
 export function RoomHeader({ room }: RoomHeaderProps) {
   const router = useRouter();
-  const roomUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/room/${room.id}`;
+  const roomUrl = `${
+    typeof window !== "undefined" ? window.location.origin : ""
+  }/room/${room.id}`;
 
   const copyRoomLink = () => {
     navigator.clipboard.writeText(roomUrl);
-    // You could add a toast notification here
+    toast.success("Room link copied to clipboard!");
   };
 
   return (
@@ -52,7 +55,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
             onClick={copyRoomLink}
             variant="outline"
             size="sm"
-            className="gap-2 bg-transparent"
+            className="gap-2 bg-transparent cursor-pointer "
           >
             <Copy className="w-4 h-4" />
             Share
