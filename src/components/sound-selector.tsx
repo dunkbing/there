@@ -91,8 +91,9 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
 
   const initAudioContext = () => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
+      audioContextRef.current = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )();
     }
     return audioContextRef.current;
   };
@@ -167,7 +168,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
 
   const addSource = (
     soundId: string,
-    source: AudioBufferSourceNode | OscillatorNode
+    source: AudioBufferSourceNode | OscillatorNode,
   ) => {
     const sources = audioSourcesRef.current.get(soundId) || [];
     sources.push(source);
@@ -183,14 +184,14 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createRainSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     for (let i = 0; i < 3; i++) {
       const bufferSize = audioContext.sampleRate * 2;
       const noiseBuffer = audioContext.createBuffer(
         1,
         bufferSize,
-        audioContext.sampleRate
+        audioContext.sampleRate,
       );
       const output = noiseBuffer.getChannelData(0);
 
@@ -216,7 +217,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createForestSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     const frequencies = [800, 1200, 1600, 2000];
     frequencies.forEach((freq, index) => {
@@ -232,7 +233,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
         gain.gain.setValueAtTime(0.1, audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(
           0.01,
-          audioContext.currentTime + 0.3
+          audioContext.currentTime + 0.3,
         );
 
         osc.connect(gain);
@@ -249,13 +250,13 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createOceanSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     const bufferSize = audioContext.sampleRate * 4;
     const noiseBuffer = audioContext.createBuffer(
       1,
       bufferSize,
-      audioContext.sampleRate
+      audioContext.sampleRate,
     );
     const output = noiseBuffer.getChannelData(0);
 
@@ -282,13 +283,13 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createCoffeeSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     const bufferSize = audioContext.sampleRate * 2;
     const noiseBuffer = audioContext.createBuffer(
       1,
       bufferSize,
-      audioContext.sampleRate
+      audioContext.sampleRate,
     );
     const output = noiseBuffer.getChannelData(0);
 
@@ -314,7 +315,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createFireplaceSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     for (let i = 0; i < 5; i++) {
       const timeout = setTimeout(() => {
@@ -324,7 +325,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
         const crackleBuffer = audioContext.createBuffer(
           1,
           bufferSize,
-          audioContext.sampleRate
+          audioContext.sampleRate,
         );
         const output = crackleBuffer.getChannelData(0);
 
@@ -350,7 +351,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createThunderstormSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     const osc = audioContext.createOscillator();
     const gain = audioContext.createGain();
@@ -358,7 +359,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
     osc.frequency.setValueAtTime(150, audioContext.currentTime);
     osc.frequency.exponentialRampToValueAtTime(
       50,
-      audioContext.currentTime + 2
+      audioContext.currentTime + 2,
     );
     osc.type = "sine";
 
@@ -376,7 +377,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createBirdsSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     const chirpFrequencies = [1600, 1800, 2000, 1400, 1900];
     chirpFrequencies.forEach((freq, index) => {
@@ -392,7 +393,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
         gain.gain.setValueAtTime(0.15, audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(
           0.01,
-          audioContext.currentTime + 0.2
+          audioContext.currentTime + 0.2,
         );
 
         osc.connect(gain);
@@ -409,7 +410,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
   const createWindSound = (
     audioContext: AudioContext,
     masterGain: GainNode,
-    soundId: string
+    soundId: string,
   ) => {
     const chimeFrequencies = [1046, 1318, 1568, 1976, 2093];
     chimeFrequencies.forEach((freq, index) => {
@@ -425,7 +426,7 @@ export function SoundSelector({ isOpen, onClose }: SoundSelectorProps) {
         gain.gain.setValueAtTime(0.1, audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(
           0.01,
-          audioContext.currentTime + 1
+          audioContext.currentTime + 1,
         );
 
         osc.connect(gain);

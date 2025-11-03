@@ -16,7 +16,7 @@ export function MusicPlayer({ isOpen, onClose }: MusicPlayerProps) {
   const [savedUrl, setSavedUrl] = useState(() =>
     typeof window !== "undefined"
       ? localStorage.getItem("youtubeUrl") || ""
-      : ""
+      : "",
   );
 
   const handleSave = () => {

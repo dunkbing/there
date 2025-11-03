@@ -90,7 +90,7 @@ export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
                   className={cn(
                     "gap-2 hover:bg-foreground/5",
                     copied &&
-                      "bg-green-50 text-green-600 hover:text-green-500 border-green-600"
+                      "bg-green-50 text-green-600 hover:text-green-500 border-green-600",
                   )}
                 >
                   <Copy className="w-4 h-4" />

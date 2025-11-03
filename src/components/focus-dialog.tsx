@@ -15,7 +15,7 @@ export function FocusDialog({ isOpen, onClose }: FocusDialogProps) {
     <div
       className={cn(
         isOpen ? "flex" : "hidden",
-        "fixed inset-0 z-50  items-end justify-center pb-28"
+        "fixed inset-0 z-50  items-end justify-center pb-28",
       )}
     >
       <div

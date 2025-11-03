@@ -67,7 +67,7 @@ export function PomodoroTimer() {
             setTimeLeft(
               (isLongBreak
                 ? settings.longBreakDuration
-                : settings.breakDuration) * 60
+                : settings.breakDuration) * 60,
             );
           } else {
             setTimeLeft(settings.workDuration * 60);
@@ -86,8 +86,9 @@ export function PomodoroTimer() {
   }, [isRunning, isWorkSession, sessionsCompleted, settings]);
 
   const playNotification = () => {
-    const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
+    const audioContext = new (
+      window.AudioContext || (window as any).webkitAudioContext
+    )();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
 
@@ -100,7 +101,7 @@ export function PomodoroTimer() {
     gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(
       0.01,
-      audioContext.currentTime + 0.5
+      audioContext.currentTime + 0.5,
     );
 
     oscillator.start(audioContext.currentTime);
@@ -212,7 +213,7 @@ export function PomodoroTimer() {
                 onChange={(e) =>
                   handleSettingsChange(
                     "workDuration",
-                    Number.parseInt(e.target.value)
+                    Number.parseInt(e.target.value),
                   )
                 }
                 className="w-full px-4 py-3 backdrop-blur-xl  rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
@@ -230,7 +231,7 @@ export function PomodoroTimer() {
                 onChange={(e) =>
                   handleSettingsChange(
                     "breakDuration",
-                    Number.parseInt(e.target.value)
+                    Number.parseInt(e.target.value),
                   )
                 }
                 className="w-full px-4 py-3 backdrop-blur-xl  rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
@@ -248,7 +249,7 @@ export function PomodoroTimer() {
                 onChange={(e) =>
                   handleSettingsChange(
                     "longBreakDuration",
-                    Number.parseInt(e.target.value)
+                    Number.parseInt(e.target.value),
                   )
                 }
                 className="w-full px-4 py-3 backdrop-blur-xl  rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 ease-out"
