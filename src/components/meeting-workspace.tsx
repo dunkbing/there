@@ -426,7 +426,7 @@ export function MeetingWorkspace({
 
       {/* Center - Main Content Area */}
       <div className="flex-1">
-        <Card className="bg-card/50 backdrop-blur-sm border-border h-full flex items-center justify-center relative overflow-hidden">
+        <Card className="bg-card/50 p-0 backdrop-blur-sm border-border h-full flex items-center justify-center relative overflow-hidden">
           {/* Default - Current User Avatar */}
           {mainContent === "default" && (
             <div className="flex flex-col items-center justify-center gap-6">
@@ -495,11 +495,7 @@ export function MeetingWorkspace({
           )}
 
           {/* Whiteboard */}
-          {mainContent === "whiteboard" && (
-            <div className="w-full h-full">
-              <Whiteboard />
-            </div>
-          )}
+          {mainContent === "whiteboard" && <Whiteboard />}
         </Card>
       </div>
     </div>
