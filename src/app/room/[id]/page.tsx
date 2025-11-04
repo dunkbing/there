@@ -35,6 +35,7 @@ import { useSession } from "@/lib/auth-client";
 import { roomClient } from "@/api/client";
 import Skeleton from "@/components/skelaton";
 import SliderSheet from "@/components/ui/slider-sheet";
+import { motion } from "motion/react";
 
 export default function RoomPage() {
   const params = useParams();
@@ -463,7 +464,12 @@ export default function RoomPage() {
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{room.name}</h1>
         </div>
-        <div className="flex items-center h-full w-fit overflow-hidden gap-2 bg-background border border-gray-300 rounded-full p-3 shadow-2xl">
+        <motion.div
+          initial={{ width: "fit-content" }}
+          whileHover={{ width: "auto" }}
+          transition={{ type: "spring", stiffness: 100, damping: 18 }}
+          className="flex items-center group duration-300 scale-x-100 h-full w-fit overflow-hidden gap-2 bg-background border border-gray-300 rounded-full p-3 shadow-2xl"
+        >
           {/* Meeting Controls */}
           {meetingControls && (
             <>
@@ -536,54 +542,61 @@ export default function RoomPage() {
           {/* Room Features */}
           <Button
             onClick={() => togglePanel("members")}
-            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-            title="Memebrs"
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
+            title="Members"
           >
             <Users className="size-4" />
           </Button>
           <Button
             onClick={() => togglePanel("chat")}
-            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
             title="Chat"
           >
             <MessageCircle className="size-4" />
           </Button>
-          <Button
-            onClick={openSoundSelector}
-            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-            title="Ambient Sounds"
+          <motion.div
+            className="flex gap-2"
+            initial={{ opacity: 0, width: 0 }}
+            whileHover={{ opacity: 1, width: "auto" }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
           >
-            <Volume2 className="size-4" />
-          </Button>
-          <Button
-            onClick={openMusicPlayer}
-            className="rounded-full w-12 h-12 p-0 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg transition-all hover:scale-110"
-            title="Music Player"
-          >
-            <Music className="size-4" />
-          </Button>
-          <Button
-            onClick={openThemeSelector}
-            className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
-            title="Change Theme"
-          >
-            <Palette className="size-4" />
-          </Button>
-          <Button
-            onClick={openFocusDialog}
-            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-            title="Focus Timer"
-          >
-            <Timer className="size-4" />
-          </Button>
-          <Button
-            onClick={openRoomInfo}
-            className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
-            title="Room Info"
-          >
-            <Info className="size-4" />
-          </Button>
-        </div>
+            <Button
+              onClick={openSoundSelector}
+              className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
+              title="Ambient Sounds"
+            >
+              <Volume2 className="size-4" />
+            </Button>
+            <Button
+              onClick={openMusicPlayer}
+              className="rounded-full w-12 h-12 p-0 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg"
+              title="Music Player"
+            >
+              <Music className="size-4" />
+            </Button>
+            <Button
+              onClick={openThemeSelector}
+              className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg"
+              title="Change Theme"
+            >
+              <Palette className="size-4" />
+            </Button>
+            <Button
+              onClick={openFocusDialog}
+              className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
+              title="Focus Timer"
+            >
+              <Timer className="size-4" />
+            </Button>
+            <Button
+              onClick={openRoomInfo}
+              className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg"
+              title="Room Info"
+            >
+              <Info className="size-4" />
+            </Button>
+          </motion.div>
+        </motion.div>
         <div className="flex-1"></div>
       </div>
 
