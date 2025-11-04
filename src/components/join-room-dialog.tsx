@@ -60,7 +60,9 @@ export function JoinRoomDialog({ isOpen, onClose }: JoinRoomDialogProps) {
 
         <div className="space-y-4 p-6">
           <div>
-            <label className="text-sm font-medium mb-2 block">Room ID</label>
+            <label className="text-sm font-medium mb-2 block">
+              Room ID <span className="text-red-500">*</span>
+            </label>
             <Input
               placeholder="Enter room ID"
               value={roomId}

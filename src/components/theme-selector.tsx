@@ -81,9 +81,12 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
 
   useEffect(() => {
     const saved = localStorage.getItem("selectedTheme");
+
     if (saved) {
       setCurrentTheme(saved);
       applyTheme(saved);
+    } else {
+      applyTheme("vibrant");
     }
   }, []);
 
