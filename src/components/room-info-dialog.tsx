@@ -71,7 +71,7 @@ export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
                   onFocus={(e) => e.target.select()}
                   readOnly
                   value={roomId}
-                  className="flex-1 bg-foreground/5 border border-foreground/10 rounded-lg px-4 py-2 text-sm text-foreground/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
+                  className="flex-1 bg-foreground/5 border border-foreground/10 rounded-lg px-4 py-2 text-sm text-foreground/70 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
                 />
               </div>
               <div>
@@ -80,7 +80,7 @@ export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
                   onFocus={(e) => e.target.select()}
                   readOnly
                   value={roomLink}
-                  className="flex-1 bg-foreground/5 border border-foreground/10 rounded-lg px-4 py-2 text-sm text-foreground/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
+                  className="flex-1 bg-foreground/5 border border-foreground/10 rounded-lg px-4 py-2 text-sm text-foreground/70 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition"
                 />
               </div>
               <div className="flex gap-2 justify-end">
@@ -90,7 +90,7 @@ export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
                   className={cn(
                     "gap-2 hover:bg-foreground/5",
                     copied &&
-                      "bg-green-50 text-green-600 hover:text-green-500 border-green-600",
+                      "bg-green-50 text-green-600 hover:text-green-500 border-green-600"
                   )}
                 >
                   <Copy className="w-4 h-4" />
@@ -104,18 +104,16 @@ export function RoomInfoDialog({ isOpen, onClose }: RoomInfoDialogProps) {
           </section>
 
           {/* Participants */}
-          <section>
-            <Card className="p-4 bg-foreground/5 border rounded-xl">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" />
-                <p className="text-sm text-muted-foreground">
-                  {participants === 1
-                    ? "You’re the only participant. Share the link to invite others."
-                    : `${participants} participants currently in the room.`}
-                </p>
-              </div>
-            </Card>
-          </section>
+          <Card className="p-4 bg-foreground/10 border rounded-xl">
+            <div className="flex items-center gap-4">
+              <Users className="w-5 h-5 text-primary" />
+              <p className="text-sm text-foreground/70">
+                {participants === 1
+                  ? "You’re the only participant. Share the link to invite others."
+                  : `${participants} participants currently in the room.`}
+              </p>
+            </div>
+          </Card>
         </div>
       </div>
     </div>

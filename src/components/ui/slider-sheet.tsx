@@ -67,7 +67,12 @@ const SliderSheet = ({ open, onClose, title, children }: SliderSheetProps) => {
             {/* Header */}
             <div className="flex items-center justify-between border-b px-4 py-3">
               <h2 className="font-medium text-lg">{title}</h2>
-              <Button variant={"ghost"} size={"icon"} onClick={onClose}>
+              <Button
+                variant={"ghost"}
+                size={"icon"}
+                onClick={onClose}
+                className="hover:bg-foreground/5"
+              >
                 <X className="w-5 h-5" />
               </Button>
             </div>

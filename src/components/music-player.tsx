@@ -16,7 +16,7 @@ export function MusicPlayer({ isOpen, onClose }: MusicPlayerProps) {
   const [savedUrl, setSavedUrl] = useState(() =>
     typeof window !== "undefined"
       ? localStorage.getItem("youtubeUrl") || ""
-      : "",
+      : ""
   );
 
   const handleSave = () => {
@@ -85,9 +85,10 @@ export function MusicPlayer({ isOpen, onClose }: MusicPlayerProps) {
               <Button
                 onClick={handleSave}
                 size="icon"
-                className=" text-white rounded-lg transition-all"
+                variant={"outline"}
+                className="hover:bg-foreground/5"
               >
-                <Copy className="w-4 h-4" />
+                <Youtube className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -138,8 +139,8 @@ export function MusicPlayer({ isOpen, onClose }: MusicPlayerProps) {
               </div>
             </div>
           ) : (
-            <div className="text-center py-10 text-white/50 text-sm">
-              Paste a YouTube URL to start playing music 🎵
+            <div className="text-center py-5 bg-foreground/5 rounded-lg border text-foreground/50 text-sm">
+              🎵 Paste a YouTube URL to start playing music
             </div>
           )}
         </div>
