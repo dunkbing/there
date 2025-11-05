@@ -49,7 +49,7 @@ export function MeetingWorkspace({
   const videoRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement | null>>(
-    new Map(),
+    new Map()
   );
 
   // Initialize WebRTC for chat, video, and screen sharing
@@ -66,7 +66,7 @@ export function MeetingWorkspace({
     localStream,
     screenStream,
     onUserLeft,
-    onUserJoined,
+    onUserJoined
   );
 
   // Expose chat data to parent component
@@ -103,7 +103,7 @@ export function MeetingWorkspace({
   // Attach remote streams to video elements
   useEffect(() => {
     console.log(
-      `[Component] Updating remote streams, count: ${remoteStreams.size}, update: ${streamUpdateCounter}`,
+      `[Component] Updating remote streams, count: ${remoteStreams.size}, update: ${streamUpdateCounter}`
     );
 
     // Listen to track events to trigger re-renders when tracks change state
@@ -179,9 +179,7 @@ export function MeetingWorkspace({
           });
           const remainingTracks = localStream.getTracks();
           setLocalStream(
-            remainingTracks.length > 0
-              ? new MediaStream(remainingTracks)
-              : null,
+            remainingTracks.length > 0 ? new MediaStream(remainingTracks) : null
           );
         }
         setIsMicOn(false);
@@ -224,9 +222,7 @@ export function MeetingWorkspace({
           });
           const remainingTracks = localStream.getTracks();
           setLocalStream(
-            remainingTracks.length > 0
-              ? new MediaStream(remainingTracks)
-              : null,
+            remainingTracks.length > 0 ? new MediaStream(remainingTracks) : null
           );
         }
         setIsVideoOn(false);
@@ -332,7 +328,7 @@ export function MeetingWorkspace({
       remoteScreenStreams.size > 0
         ? Array.from(remoteScreenStreams.keys())[0]
         : null,
-    [remoteScreenStreams],
+    [remoteScreenStreams]
   );
 
   const screenSharingMember = useMemo(
@@ -343,14 +339,14 @@ export function MeetingWorkspace({
             return peerId === screenSharingPeerId;
           })
         : null,
-    [screenSharingPeerId, members],
+    [screenSharingPeerId, members]
   );
 
   return (
     <div className="flex gap-6 h-full">
       {/* Left Column - Video Grid */}
       <div className="w-80 shrink-0">
-        <Card className="bg-card/50 backdrop-blur-sm border-border p-4 h-full">
+        <Card className="bg-background  border shadow-sm p-4 h-full">
           <div className="space-y-3">
             {members.map((member) => {
               const peerId =
@@ -373,7 +369,7 @@ export function MeetingWorkspace({
                 ? (() => {
                     const videoTracks = remoteStream.getVideoTracks();
                     const hasLiveTrack = videoTracks.some(
-                      (t) => t.readyState === "live" && t.enabled && !t.muted,
+                      (t) => t.readyState === "live" && t.enabled && !t.muted
                     );
                     const isStreamActive = remoteStream.active;
                     return (
@@ -430,7 +426,7 @@ export function MeetingWorkspace({
 
       {/* Center - Main Content Area */}
       <div className="flex-1">
-        <Card className="bg-card/50 p-0 backdrop-blur-sm border-border h-full flex items-center justify-center relative overflow-hidden">
+        <Card className="bg-background p-0 shadow-sm border h-full flex items-center justify-center relative overflow-hidden">
           {/* Default - Current User Avatar */}
           {mainContent === "default" && (
             <div className="flex flex-col items-center justify-center gap-6">

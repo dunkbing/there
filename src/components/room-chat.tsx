@@ -36,7 +36,7 @@ export function RoomChat({
   }, [chatInput, onSendMessage]);
 
   return (
-    <div className="  flex flex-col h-full">
+    <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 mb-4 bg-black/5 rounded-lg p-3">
         {chatMessages.length === 0 ? (

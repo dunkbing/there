@@ -1,7 +1,6 @@
 "use client";
 
 import { RoomMemberWithRelations } from "@/lib/schemas";
-import { Users } from "lucide-react";
 
 interface RoomMembersProps {
   members: RoomMemberWithRelations[];
