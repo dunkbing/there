@@ -29,6 +29,7 @@ import {
   Pencil,
   Users,
   MessageCircle,
+  PhoneOff,
 } from "lucide-react";
 import type { RoomWithRelations } from "@/lib/schemas";
 import { useSession } from "@/lib/auth-client";
@@ -190,6 +191,26 @@ export default function RoomPage() {
       console.error("Failed to leave room:", error);
     }
   }, [roomId]);
+
+  const handleLeaveRoom = useCallback(async () => {
+    try {
+      // Call the existing leaveRoom function
+      await leaveRoom();
+
+      // Clear the guest data from localStorage
+      localStorage.removeItem(`guestId_${roomId}`);
+
+      // Reset the joined state
+      setHasJoinedRoom(false);
+
+      toast.success("You left the room");
+
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Failed to leave room:", error);
+      toast.error("Failed to leave room");
+    }
+  }, [leaveRoom, roomId]);
 
   const joinRoom = useCallback(
     async (guestName: string) => {
@@ -405,7 +426,7 @@ export default function RoomPage() {
   }
 
   return (
-    <main className="h-screen overflow-hidden p-5 gap-5 flex flex-col">
+    <main className="h-screen overflow-hidden bg-stone-100 p-5 gap-5 flex flex-col">
       {/* Room Header */}
       {/* <RoomHeader room={room} /> */}
 
@@ -427,33 +448,29 @@ export default function RoomPage() {
 
           {/* Sidebar - Room Members & Chat */}
           {activePanel && (
-            <div className="flex-1 space-y-6">
-              {activePanel && (
-                <SliderSheet
-                  open={!!activePanel}
-                  onClose={() => setActivePanel(null)}
-                  title={
-                    activePanel === "members"
-                      ? `Members (${room?.members?.length || 0})`
-                      : "Chat"
-                  }
-                >
-                  {activePanel === "members" && (
-                    <RoomMembers
-                      members={room?.members || []}
-                      currentUserId={currentUserId}
-                    />
-                  )}
-
-                  {activePanel === "chat" && (
-                    <RoomChat
-                      messages={chatMessages}
-                      onSendMessage={chatSendMessage}
-                    />
-                  )}
-                </SliderSheet>
+            <SliderSheet
+              open={!!activePanel}
+              onClose={() => setActivePanel(null)}
+              title={
+                activePanel === "members"
+                  ? `Members (${room?.members?.length || 0})`
+                  : "Chat"
+              }
+            >
+              {activePanel === "members" && (
+                <RoomMembers
+                  members={room?.members || []}
+                  currentUserId={currentUserId}
+                />
               )}
-            </div>
+
+              {activePanel === "chat" && (
+                <RoomChat
+                  messages={chatMessages}
+                  onSendMessage={chatSendMessage}
+                />
+              )}
+            </SliderSheet>
           )}
         </div>
       </div>
@@ -463,7 +480,7 @@ export default function RoomPage() {
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{room.name}</h1>
         </div>
-        <div className="flex items-center h-full w-fit overflow-hidden gap-2 bg-background border border-gray-300 rounded-full p-3 shadow-2xl">
+        <div className="flex shadow-sm items-center h-full w-fit overflow-hidden gap-2 bg-background border border-gray-300 rounded-full p-3 ">
           {/* Meeting Controls */}
           {meetingControls && (
             <>
@@ -533,21 +550,8 @@ export default function RoomPage() {
           )}
 
           <div className="bg-gray-300 h-10 w-px" />
+
           {/* Room Features */}
-          <Button
-            onClick={() => togglePanel("members")}
-            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-            title="Memebrs"
-          >
-            <Users className="size-4" />
-          </Button>
-          <Button
-            onClick={() => togglePanel("chat")}
-            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
-            title="Chat"
-          >
-            <MessageCircle className="size-4" />
-          </Button>
           <Button
             onClick={openSoundSelector}
             className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
@@ -576,6 +580,33 @@ export default function RoomPage() {
           >
             <Timer className="size-4" />
           </Button>
+
+          <div className="bg-gray-300 h-10 w-px" />
+
+          <Button
+            onClick={handleLeaveRoom}
+            className="rounded-full w-12 h-12 p-0  text-primary-foreground shadow-lg transition-all hover:scale-110"
+            title="Leave Room"
+            variant={"destructive"}
+          >
+            <PhoneOff className="size-4" />
+          </Button>
+        </div>
+        <div className="flex-1 flex gap-2 justify-end items-center">
+          <Button
+            onClick={() => togglePanel("members")}
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+            title="Memebrs"
+          >
+            <Users className="size-4" />
+          </Button>
+          <Button
+            onClick={() => togglePanel("chat")}
+            className="rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all hover:scale-110"
+            title="Chat"
+          >
+            <MessageCircle className="size-4" />
+          </Button>
           <Button
             onClick={openRoomInfo}
             className="rounded-full w-12 h-12 p-0 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg transition-all hover:scale-110"
@@ -584,7 +615,6 @@ export default function RoomPage() {
             <Info className="size-4" />
           </Button>
         </div>
-        <div className="flex-1"></div>
       </div>
 
       {/* Popups */}
