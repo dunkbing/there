@@ -48,10 +48,11 @@ export default function Home() {
         <div className="absolute top-[200px] right-[200px] w-[400px] h-[400px] bg-pink-500/20 rounded-full blur-[160px]" />
 
         <div
-          className="absolute inset-0 opacity-[0.2] mix-blend-overlay"
+          className="absolute inset-0 opacity-[0.1] mix-blend-overlay"
           style={{
             backgroundImage: 'url("/images/Grain.png")',
             backgroundRepeat: "repeat",
+
             backgroundSize: "cover",
           }}
         />
@@ -63,7 +64,7 @@ export default function Home() {
       <div className="container mx-auto px-4 py-12 relative z-10">
         {/* Enhanced Hero Section */}
         <div className="mb-20 text-center relative">
-          <div className="inline-flex items-center gap-2 bg-background border border-primary/20 rounded-full px-4 py-2 mb-6 backdrop-blur-sm">
+          <div className="inline-flex items-center gap-2 bg-background/20  border border-primary/20 rounded-full px-4 py-2 mb-6 backdrop-blur-sm">
             <Sparkles className="w-4 h-4 text-purple-500 animate-pulse" />
             <span className="text-sm font-medium text-primary">
               Boost Your Productivity
@@ -74,7 +75,7 @@ export default function Home() {
             Focus Together
           </h1>
 
-          <p className="text-xl text-muted max-w-3xl mx-auto leading-relaxed mb-8">
+          <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed mb-8">
             Create collaborative focus rooms with integrated pomodoro timers,
             ambient sounds, and real-time video chat. Stay productive with your
             team.
@@ -82,15 +83,15 @@ export default function Home() {
 
           {/* Feature badges */}
           <div className="flex flex-wrap gap-3 justify-center items-center max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-            <div className="inline-flex items-center gap-2 bg-white border border-white/10 rounded-full px-4 py-2 text-sm">
+            <div className="inline-flex items-center gap-2 text-accent bg-white border border-white/10 rounded-full px-4 py-2 text-sm">
               <Zap className="w-4 h-4 text-yellow-500" />
               <span>Real-time Sync</span>
             </div>
-            <div className="inline-flex items-center gap-2 bg-white border border-white/10 rounded-full px-4 py-2 text-sm">
+            <div className="inline-flex items-center gap-2 text-accent bg-white border border-white/10 rounded-full px-4 py-2 text-sm">
               <Users className="w-4 h-4 text-blue-500" />
               <span>Collaborative</span>
             </div>
-            <div className="inline-flex items-center gap-2 bg-white border border-white/10 rounded-full px-4 py-2 text-sm">
+            <div className="inline-flex items-center gap-2 text-accent bg-white border border-white/10 rounded-full px-4 py-2 text-sm">
               <Target className="w-4 h-4 text-green-500" />
               <span>Focus-Driven</span>
             </div>
@@ -111,7 +112,7 @@ export default function Home() {
               <Button
                 onClick={() => setCreateDialogOpen(true)}
                 size="lg"
-                className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105"
+                className="gap-2 bg-linear-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105"
               >
                 <Plus className="w-5 h-5" />
                 Create New Room
@@ -122,7 +123,7 @@ export default function Home() {
         ) : (
           // Not logged in view - enhanced welcome
           <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-3xl p-12 text-center space-y-8 shadow-2xl">
+            <div className="backdrop-blur-xl bg-linear-to-br from-white/10 to-white/5 border border-white/20 rounded-3xl p-12 text-center space-y-8 shadow-2xl">
               <div className="space-y-4">
                 <h2 className="text-3xl font-bold">Get Started Today</h2>
                 <p className="text-lg text-muted-foreground max-w-xl mx-auto">
@@ -144,7 +145,7 @@ export default function Home() {
                 <Button
                   onClick={() => setCreateDialogOpen(true)}
                   size="lg"
-                  className="gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105"
+                  className="gap-2  shadow-lg shadow-primary/25 transition-all duration-300 hover:scale-105"
                 >
                   <Plus className="w-5 h-5" />
                   Create Your Room
@@ -159,8 +160,8 @@ export default function Home() {
               </h3>
 
               <div className="grid md:grid-cols-3 gap-6">
-                <div className="group backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-2xl p-8 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:scale-105 hover:border-primary/30">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                <div className="group backdrop-blur-xl bg-linear-to-br from-white/10 to-white/5 border border-white/20 rounded-2xl p-8 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:scale-105 hover:border-primary/30">
+                  <div className="w-12 h-12 rounded-xl bg-linear-to-br from-blue-500/20 to-blue-600/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                     <Users className="w-6 h-6 text-blue-500" />
                   </div>
                   <h3 className="font-semibold text-lg mb-3">
@@ -172,8 +173,8 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="group backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-2xl p-8 hover:shadow-xl hover:shadow-accent/10 transition-all duration-300 hover:scale-105 hover:border-accent/30">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                <div className="group backdrop-blur-xl bg-linear-to-br from-white/10 to-white/5 border border-white/20 rounded-2xl p-8 hover:shadow-xl hover:shadow-accent/10 transition-all duration-300 hover:scale-105 hover:border-accent/30">
+                  <div className="w-12 h-12 rounded-xl bg-linear-to-br from-purple-500/20 to-purple-600/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                     <Timer className="w-6 h-6 text-purple-500" />
                   </div>
                   <h3 className="font-semibold text-lg mb-3">
@@ -185,8 +186,8 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="group backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-2xl p-8 hover:shadow-xl hover:shadow-secondary/10 transition-all duration-300 hover:scale-105 hover:border-secondary/30">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                <div className="group backdrop-blur-xl bg-linear-to-br from-white/10 to-white/5 border border-white/20 rounded-2xl p-8 hover:shadow-xl hover:shadow-secondary/10 transition-all duration-300 hover:scale-105 hover:border-secondary/30">
+                  <div className="w-12 h-12 rounded-xl bg-linear-to-br from-green-500/20 to-green-600/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                     <Video className="w-6 h-6 text-green-500" />
                   </div>
                   <h3 className="font-semibold text-lg mb-3">Video & Chat</h3>
@@ -199,7 +200,7 @@ export default function Home() {
 
               {/* Additional features row */}
               <div className="grid md:grid-cols-3 gap-6">
-                <div className="backdrop-blur-xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all duration-300">
+                <div className="backdrop-blur-xl bg-linear-to-br from-white/5 to-white/2 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all duration-300">
                   <Music className="w-6 h-6 text-orange-500 mb-3" />
                   <h4 className="font-medium mb-2">Ambient Sounds</h4>
                   <p className="text-sm text-muted-foreground">
@@ -207,7 +208,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="backdrop-blur-xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all duration-300">
+                <div className="backdrop-blur-xl bg-linear-to-br from-white/5 to-white/2 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all duration-300">
                   <MessageSquare className="w-6 h-6 text-pink-500 mb-3" />
                   <h4 className="font-medium mb-2">Real-time Chat</h4>
                   <p className="text-sm text-muted-foreground">
@@ -215,7 +216,7 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="backdrop-blur-xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all duration-300">
+                <div className="backdrop-blur-xl bg-linear-to-br from-white/5 to-white/2 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all duration-300">
                   <Target className="w-6 h-6 text-cyan-500 mb-3" />
                   <h4 className="font-medium mb-2">Focus Sessions</h4>
                   <p className="text-sm text-muted-foreground">
