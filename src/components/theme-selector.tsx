@@ -95,9 +95,10 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
     if (!theme) return;
 
     const root = document.documentElement;
-    root.style.setProperty("--primary", theme.colors.primary);
-    root.style.setProperty("--accent", theme.colors.accent);
-    root.style.setProperty("--secondary", theme.colors.secondary);
+    console.log(root);
+    root.style.setProperty("--primary", theme.colors.primary, "important");
+    root.style.setProperty("--accent", theme.colors.accent, "important");
+    root.style.setProperty("--secondary", theme.colors.secondary, "important");
 
     localStorage.setItem("selectedTheme", themeId);
     setCurrentTheme(themeId);
@@ -156,15 +157,15 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                 {/* Color swatches */}
                 <div className="flex gap-2 justify-center">
                   <div
-                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-background transition-transform group-hover:scale-110"
+                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-white transition-transform group-hover:scale-110"
                     style={{ backgroundColor: theme.colors.primary }}
                   />
                   <div
-                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-background transition-transform group-hover:scale-110"
+                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-white transition-transform group-hover:scale-110"
                     style={{ backgroundColor: theme.colors.accent }}
                   />
                   <div
-                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-background transition-transform group-hover:scale-110"
+                    className="w-5 h-5 rounded-full shadow-sm ring-2 ring-white transition-transform group-hover:scale-110"
                     style={{ backgroundColor: theme.colors.secondary }}
                   />
                 </div>

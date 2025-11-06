@@ -21,8 +21,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`font-sans antialiased dark ${Plus.className}`}>
-        <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
+      <body className={`font-sans antialiased  ${Plus.className}`}>
+        <ThemeProvider attribute="class" defaultTheme="system">
           {children}
           <Toaster />
           <Analytics />
