@@ -39,7 +39,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen relative ">
+    <main className="min-h-screen relative dark">
       {/* Gradient Background */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-linear-to-br from-[#0a0a0f] via-[#111122] to-[#0f1018]" />
