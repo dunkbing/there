@@ -5,7 +5,7 @@
 
 :root {
   /* Vibrant, modern color palette with glass-morphism support */
-  --card: oklch(1 0 0);
+  --card: oklch(0.98 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -120,6 +120,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -150,12 +151,10 @@
 }
 
 .vibrant-gradient {
-  background: linear-gradient(
-    to bottom right,
-    rgb(var(--color-primary) / 0.2),
-    rgb(var(--color-accent) / 0.1),
-    rgb(var(--color-secondary) / 0.2)
-  );
+  background: linear-gradient(to bottom right,
+      rgb(var(--color-primary) / 0.2),
+      rgb(var(--color-accent) / 0.1),
+      rgb(var(--color-secondary) / 0.2));
 }
 
 .glow-effect {

@@ -346,7 +346,7 @@ export function MeetingWorkspace({
     <div className="flex gap-6 h-full">
       {/* Left Column - Video Grid */}
       <div className="w-80 shrink-0">
-        <Card className="bg-background  border shadow-sm p-4 h-full">
+        <Card className="  border shadow-sm p-4 h-full">
           <div className="space-y-3">
             {members.map((member) => {
               const peerId =
@@ -426,7 +426,7 @@ export function MeetingWorkspace({
 
       {/* Center - Main Content Area */}
       <div className="flex-1">
-        <Card className="bg-background p-0 shadow-sm border h-full flex items-center justify-center relative overflow-hidden">
+        <Card className=" p-0 shadow-sm border h-full flex items-center justify-center relative overflow-hidden">
           {/* Default - Current User Avatar */}
           {mainContent === "default" && (
             <div className="flex flex-col items-center justify-center gap-6">

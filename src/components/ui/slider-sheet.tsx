@@ -56,7 +56,7 @@ const SliderSheet = ({ open, onClose, title, children }: SliderSheetProps) => {
             animate="visible"
             exit="hidden"
             variants={isMobile ? mobileVariants : desktopVariants}
-            className={` bg-background text-foreground shadow-sm
+            className={` bg-card text-foreground shadow-sm
               ${
                 isMobile
                   ? "bottom-0 left-0 w-full h-[85vh] z-50 rounded-t-2xl"

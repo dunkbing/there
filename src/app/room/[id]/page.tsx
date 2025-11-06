@@ -426,7 +426,7 @@ export default function RoomPage() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-stone-100 p-5 gap-5 flex flex-col">
+    <main className="h-screen overflow-hidden  p-5 gap-5 flex flex-col">
       {/* Room Header */}
       {/* <RoomHeader room={room} /> */}
 
@@ -480,7 +480,7 @@ export default function RoomPage() {
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{room.name}</h1>
         </div>
-        <div className="flex shadow-sm items-center h-full w-fit overflow-hidden gap-2 bg-background border border-gray-300 rounded-full p-3 ">
+        <div className="flex bg-card shadow-sm items-center h-full w-fit overflow-hidden gap-2 border  rounded-full p-3 ">
           {/* Meeting Controls */}
           {meetingControls && (
             <>
@@ -585,7 +585,7 @@ export default function RoomPage() {
 
           <Button
             onClick={handleLeaveRoom}
-            className="rounded-full w-12 h-12 p-0  text-primary-foreground shadow-lg transition-all hover:scale-110"
+            className="rounded-full w-12 h-12 p-0  dark:bg-red-500 bg-red-500 shadow-lg transition-all hover:scale-110"
             title="Leave Room"
             variant={"destructive"}
           >

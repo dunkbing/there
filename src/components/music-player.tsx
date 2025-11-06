@@ -49,7 +49,7 @@ export function MusicPlayer({ isOpen, onClose }: MusicPlayerProps) {
       />
 
       {/* Player Container */}
-      <div className="relative z-50 w-[380px] rounded-3xl bg-gray-50 border border-foreground/10 backdrop-blur-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
+      <div className="relative z-50 w-[380px] rounded-3xl  border border-foreground/10 backdrop-blur-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-foreground/10">
           <div className="flex items-center gap-2">
