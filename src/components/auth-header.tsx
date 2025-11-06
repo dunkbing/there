@@ -9,13 +9,10 @@ export function AuthHeader() {
   const { data: session } = useSession();
 
   return (
-    <header className="backdrop-blur-xl bg-white/10 dark:bg-white/5 border-b border-white/20 dark:border-white/10 sticky top-0 z-50">
+    <header className="backdrop-blur-xl bg-background/20 border-b border-white/10 w-full sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <Link
-          href="/"
-          className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent"
-        >
-          Focus Together
+        <Link href="/" className="text-2xl font-bold ">
+          There
         </Link>
 
         <div className="flex items-center gap-4">
@@ -38,21 +35,15 @@ export function AuthHeader() {
             </>
           ) : (
             <div className="flex gap-2">
-              <Link href="/auth/signin">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 bg-transparent"
-                >
+              <Button variant="outline" size={"sm"} asChild>
+                <Link href="/auth/signin">
                   <LogIn className="w-4 h-4" />
                   Sign In
-                </Button>
-              </Link>
-              <Link href="/auth/signup">
-                <Button size="sm" className="bg-primary hover:bg-primary/90">
-                  Sign Up
-                </Button>
-              </Link>
+                </Link>
+              </Button>
+              <Button asChild size={"sm"} variant={"default"}>
+                <Link href="/auth/signup">Get Started</Link>
+              </Button>
             </div>
           )}
         </div>
