@@ -53,7 +53,7 @@ export default function RoomPage() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentUserName, setCurrentUserName] = useState("Guest");
   const [activePanel, setActivePanel] = useState<"chat" | "members" | null>(
-    null
+    null,
   );
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatSendMessage, setChatSendMessage] = useState<
@@ -82,10 +82,10 @@ export default function RoomPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       setCurrentUserId(
-        session?.user?.id || localStorage.getItem(`guestId_${roomId}`) || ""
+        session?.user?.id || localStorage.getItem(`guestId_${roomId}`) || "",
       );
       setCurrentUserName(
-        session?.user?.name || localStorage.getItem("guestUsername") || "Guest"
+        session?.user?.name || localStorage.getItem("guestUsername") || "Guest",
       );
     }
   }, [session, roomId]);
@@ -154,7 +154,7 @@ export default function RoomPage() {
           console.log(
             `[RoomPage ${roomId}] Room data loaded:`,
             data.name,
-            `(${data.members?.length || 0} members)`
+            `(${data.members?.length || 0} members)`,
           );
           setRoom(data);
           // Initialize previous members list
@@ -163,7 +163,7 @@ export default function RoomPage() {
         } else {
           console.error(
             `[RoomPage ${roomId}] Room fetch failed with status:`,
-            response.status
+            response.status,
           );
         }
       } catch (error) {
@@ -262,7 +262,7 @@ export default function RoomPage() {
         joiningRef.current = false;
       }
     },
-    [roomId]
+    [roomId],
   );
 
   // Auto-join authenticated users
@@ -294,7 +294,7 @@ export default function RoomPage() {
       setShowUsernameDialog(false);
       joinRoom(username);
     },
-    [joinRoom]
+    [joinRoom],
   );
 
   const handleChatUpdate = useCallback(
@@ -302,7 +302,7 @@ export default function RoomPage() {
       setChatMessages(messages);
       setChatSendMessage(() => sendMessage);
     },
-    []
+    [],
   );
 
   const handleControlsReady = useCallback((controls: any) => {
@@ -330,7 +330,7 @@ export default function RoomPage() {
               m.user?.id === joinedUserId ||
               m.userId === joinedUserId ||
               m.guestId === joinedUserId ||
-              m.id === joinedUserId
+              m.id === joinedUserId,
           );
           if (newMember) {
             const memberName =
@@ -340,7 +340,7 @@ export default function RoomPage() {
         });
       }
     },
-    [roomId]
+    [roomId],
   );
 
   const handleUserLeft = useCallback(
@@ -353,7 +353,7 @@ export default function RoomPage() {
             m.user?.id === leftUserId ||
             m.userId === leftUserId ||
             m.guestId === leftUserId ||
-            m.id === leftUserId
+            m.id === leftUserId,
         );
         if (leftMember) {
           const memberName =
@@ -377,7 +377,7 @@ export default function RoomPage() {
           }
         });
     },
-    [roomId]
+    [roomId],
   );
 
   // Handle disconnect when user leaves the room

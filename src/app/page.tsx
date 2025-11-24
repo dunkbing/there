@@ -21,22 +21,9 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const { data: session, isPending } = useSession();
+  const { data: session } = useSession();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-
-  if (isPending) {
-    return (
-      <main className="min-h-screen bg-linear-to-br from-background via-background to-primary/5 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground animate-pulse">
-            Loading your workspace...
-          </p>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen relative dark">
